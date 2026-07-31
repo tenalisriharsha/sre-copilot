@@ -85,10 +85,13 @@ Components:
 
 ### Night 1
 - Designed architecture (above), created PROGRESS.md and README.md.
-- Scaffolded the project: `pyproject.toml`, `src/sre_copilot` layout, pytest.
-- Implemented settings, Alertmanager models, `/healthz`, and the
-  `POST /api/v1/alerts` ingestion endpoint with an in-process alert queue.
-- All tests passing (pytest).
+- Scaffolded the project: `pyproject.toml`, `src/sre_copilot` layout, pytest,
+  ruff.
+- Implemented settings (`config.py`), Alertmanager models (`models.py`),
+  the in-process `AlertPipeline` (`pipeline.py`), `GET /healthz`, and
+  `POST /api/v1/alerts`.
+- Test suite: 12 tests across config, models, health and ingestion —
+  all passing (`pytest`), lint clean (`ruff check` + `ruff format --check`).
 
 ## Resume Point (Night 2)
 
