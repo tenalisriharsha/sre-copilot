@@ -8,6 +8,7 @@ from sre_copilot import __version__
 from sre_copilot.api import alerts, health
 from sre_copilot.config import get_settings
 from sre_copilot.pipeline import AlertPipeline
+from sre_copilot.rag.retriever import RunbookRetriever
 
 
 def create_app() -> FastAPI:
@@ -15,7 +16,8 @@ def create_app() -> FastAPI:
     logging.basicConfig(level=settings.log_level.upper())
 
     app = FastAPI(title=settings.app_name, version=__version__)
-    app.state.pipeline = AlertPipeline()
+    app.state.retriever = RunbookRetriever.from_settings(settings)
+    app.state.pipeline = AlertPipeline(retriever=app.state.retriever)
     app.include_router(health.router)
     app.include_router(alerts.router)
     return app

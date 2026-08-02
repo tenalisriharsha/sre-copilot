@@ -1,13 +1,15 @@
 """In-process alert processing pipeline.
 
-Phase 1 keeps this intentionally small: alerts are validated, normalized and
-queued in memory. Later phases add runbook retrieval (RAG), metrics
-correlation, LLM diagnosis and Slack notification as pipeline stages.
+Phase 1: alerts are validated, normalized and queued in memory.
+Phase 2: a RAG stage retrieves matching runbook excerpts for each alert.
+Later phases add metrics correlation, LLM diagnosis and Slack notification.
 """
 
 import logging
 
 from sre_copilot.models import Alert, WebhookPayload
+from sre_copilot.rag.documents import RetrievalHit
+from sre_copilot.rag.retriever import RunbookRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -15,23 +17,32 @@ logger = logging.getLogger(__name__)
 class AlertPipeline:
     """Accepts alert groups and runs them through the processing stages."""
 
-    def __init__(self) -> None:
+    def __init__(self, retriever: RunbookRetriever | None = None) -> None:
+        self._retriever = retriever
         self._queue: list[Alert] = []
+        self._retrievals: dict[str, list[RetrievalHit]] = {}
 
     async def process(self, payload: WebhookPayload) -> list[str]:
         """Queue every alert in the group; return their fingerprints."""
         fingerprints: list[str] = []
         for alert in payload.alerts:
+            hits = self._retriever.retrieve(alert) if self._retriever else []
+            self._retrievals[alert.fingerprint] = hits
             logger.info(
-                "alert received name=%s severity=%s status=%s fingerprint=%s",
+                "alert received name=%s severity=%s status=%s fingerprint=%s runbook_hits=%d",
                 alert.alertname,
                 alert.severity,
                 alert.status,
                 alert.fingerprint,
+                len(hits),
             )
             self._queue.append(alert)
             fingerprints.append(alert.fingerprint)
         return fingerprints
+
+    def retrieval_for(self, fingerprint: str) -> list[RetrievalHit]:
+        """Return the runbook hits recorded for an alert fingerprint."""
+        return self._retrievals.get(fingerprint, [])
 
     @property
     def pending(self) -> int:

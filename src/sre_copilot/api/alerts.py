@@ -16,5 +16,19 @@ async def receive_alerts(payload: WebhookPayload, request: Request) -> AlertAck:
     return AlertAck(
         received=len(fingerprints),
         fingerprints=fingerprints,
-        detail={"receiver": payload.receiver, "group_status": payload.status},
+        detail={
+            "receiver": payload.receiver,
+            "group_status": payload.status,
+            "runbooks": {
+                fingerprint: [
+                    {
+                        "runbook": hit.chunk.runbook,
+                        "section": hit.chunk.section,
+                        "score": round(hit.score, 4),
+                    }
+                    for hit in pipeline.retrieval_for(fingerprint)
+                ]
+                for fingerprint in fingerprints
+            },
+        },
     )
