@@ -1,6 +1,7 @@
 """Application settings, loaded from environment variables (12-factor)."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,6 +26,13 @@ class Settings(BaseSettings):
     runbooks_dir: str = "runbooks"
     llm_model: str = "gpt-4o-mini"
     llm_api_key: str | None = None
+
+    # RAG pipeline.
+    # "hash" is a deterministic, dependency-free embedder (default, works
+    # offline); "sentence-transformers" loads a real local model.
+    embedding_backend: Literal["hash", "sentence-transformers"] = "hash"
+    embedding_model: str = "all-MiniLM-L6-v2"
+    retrieval_top_k: int = 3
 
 
 @lru_cache
