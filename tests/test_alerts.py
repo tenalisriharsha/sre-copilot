@@ -18,6 +18,16 @@ async def test_receive_alerts_enqueues_for_processing(client, app, alertmanager_
     assert app.state.pipeline.pending == 0
 
 
+async def test_receive_alerts_attaches_runbook_hits(client, alertmanager_payload):
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    runbooks = resp.json()["detail"]["runbooks"]
+    assert set(runbooks) == {"a1b2c3d4e5f60718", "f60718a1b2c3d4e5"}
+    top_hit = runbooks["a1b2c3d4e5f60718"][0]
+    assert top_hit["runbook"] == "crashloopbackoff"
+    assert top_hit["score"] > 0
+
+
 async def test_receive_alerts_rejects_invalid_payload(client):
     resp = await client.post("/api/v1/alerts", json={"alerts": [{"labels": {}}]})
     assert resp.status_code == 422

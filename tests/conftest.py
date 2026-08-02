@@ -1,7 +1,19 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from sre_copilot.config import get_settings
 from sre_copilot.main import create_app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_chroma_dir(tmp_path_factory):
+    """Point the Chroma persist dir at a throwaway tmp dir for the test run."""
+    import os
+
+    os.environ["SRE_COPILOT_CHROMA_PERSIST_DIR"] = str(tmp_path_factory.mktemp("chroma"))
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
