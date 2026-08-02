@@ -51,13 +51,15 @@ Components:
       enqueue for processing)
 - [x] Tests for all of the above (pytest + httpx AsyncClient)
 
-### Phase 2 — RAG Pipeline (Night 2)
-- [ ] Runbook loader: read Markdown runbooks, chunk by section
-- [ ] Embedding provider (sentence-transformers, local)
-- [ ] ChromaDB collection: index runbooks at startup
-- [ ] Retrieval service: alert → top-k runbook excerpts
-- [ ] Sample runbooks for common K8s alerts (CrashLoopBackOff, OOMKilled, etc.)
-- [ ] Tests: chunking, retrieval ranking (mocked embeddings where needed)
+### Phase 2 — RAG Pipeline (Night 2) ✅
+- [x] Runbook loader: read Markdown runbooks, chunk by section
+- [x] Embedding provider (sentence-transformers, local; deterministic hash
+      embedder as the offline default)
+- [x] ChromaDB collection: index runbooks at startup
+- [x] Retrieval service: alert → top-k runbook excerpts
+- [x] Sample runbooks for common K8s alerts (CrashLoopBackOff, OOMKilled,
+      ImagePullBackOff, high CPU, node NotReady)
+- [x] Tests: chunking, retrieval ranking (mocked embeddings where needed)
 
 ### Phase 3 — Metrics Correlation (Night 3)
 - [ ] Prometheus HTTP API client (query_range, label extraction from alert)
@@ -93,11 +95,42 @@ Components:
 - Test suite: 12 tests across config, models, health and ingestion —
   all passing (`pytest`), lint clean (`ruff check` + `ruff format --check`).
 
-## Resume Point (Night 2)
+### Night 2
+- Built the RAG pipeline (`src/sre_copilot/rag/`):
+  - `loader.py` — reads `runbooks/*.md`, chunks by `#`/`##` section
+    (preamble becomes an `overview` chunk).
+  - `embeddings.py` — ChromaDB-compatible embedding functions:
+    `HashEmbeddingFunction` (deterministic, offline, the default backend;
+    splits CamelCase identifiers like `KubePodCrashLooping` into tokens) and
+    `SentenceTransformerEmbeddingFunction` (real local model, lazy import).
+    Backend selected via `SRE_COPILOT_EMBEDDING_BACKEND`.
+  - `store.py` — `RunbookStore` over a ChromaDB collection (persistent in
+    prod via `SRE_COPILOT_CHROMA_PERSIST_DIR`, ephemeral client in tests),
+    cosine space, upsert + top-k query returning `RetrievalHit`s.
+  - `retriever.py` — `RunbookRetriever` composes the query from alertname /
+    severity / namespace / pod / summary, indexes runbooks at startup when
+    the collection is empty.
+- Wrote 5 sample runbooks in `runbooks/` (CrashLoopBackOff, OOMKilled,
+  ImagePullBackOff, high CPU, node NotReady).
+- Wired retrieval into `AlertPipeline.process()` and the webhook ack:
+  `detail.runbooks` now maps each fingerprint to its top-k hits
+  (runbook, section, score).
+- Gotchas hit: ChromaDB 1.5 requires embedding functions to implement
+  `name()`/`get_config()`/`build_from_config()` (subclass its
+  `EmbeddingFunction`), its wrapper returns numpy arrays (test equality
+  needs normalization), and `EphemeralClient` shares process-wide state
+  (tests use distinct collection names).
+- Test suite: 33 tests, all passing; lint clean.
 
-Start **Phase 2 — RAG Pipeline**:
-1. Add `chromadb` + `sentence-transformers` deps to `pyproject.toml`.
-2. Create `src/sre_copilot/rag/` (loader, chunker, store, retriever).
-3. Add `runbooks/` dir with 3–5 sample Markdown runbooks.
-4. Wire retrieval into the alert pipeline in `api/alerts.py`.
-5. Tests for chunker + retriever (mock embeddings where heavy).
+## Resume Point (Night 3)
+
+Start **Phase 3 — Metrics Correlation**:
+1. Create `src/sre_copilot/metrics/` with a Prometheus HTTP API client
+   (`/api/v1/query_range`, async httpx) and a correlation service that
+   extracts pod/namespace labels from the alert and pulls recent metrics
+   (CPU, memory, restarts).
+2. Wire the correlation stage into `AlertPipeline` behind settings
+   (`SRE_COPILOT_PROMETHEUS_URL`), degrading gracefully when Prometheus is
+   unreachable.
+3. Tests with mocked Prometheus responses (httpx MockTransport or respx-style
+   monkeypatching) — no live Prometheus in CI.
