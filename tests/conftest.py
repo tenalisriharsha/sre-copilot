@@ -11,6 +11,9 @@ def _isolated_chroma_dir(tmp_path_factory):
     import os
 
     os.environ["SRE_COPILOT_CHROMA_PERSIST_DIR"] = str(tmp_path_factory.mktemp("chroma"))
+    # Metrics correlation is disabled by default; tests that need it build
+    # their own correlator with a mocked transport.
+    os.environ["SRE_COPILOT_PROMETHEUS_URL"] = ""
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

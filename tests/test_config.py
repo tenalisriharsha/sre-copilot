@@ -1,12 +1,18 @@
 from sre_copilot.config import Settings
 
 
-def test_settings_defaults():
+def test_settings_defaults(monkeypatch):
+    # The session conftest blanks these for isolation; remove to test defaults.
+    monkeypatch.delenv("SRE_COPILOT_PROMETHEUS_URL", raising=False)
+    monkeypatch.delenv("SRE_COPILOT_CHROMA_PERSIST_DIR", raising=False)
     settings = Settings()
     assert settings.app_name == "sre-copilot"
     assert settings.environment == "development"
     assert settings.log_level == "info"
     assert settings.prometheus_url == "http://prometheus:9090"
+    assert settings.prometheus_timeout_seconds == 5.0
+    assert settings.metrics_window_minutes == 30
+    assert settings.metrics_step_seconds == 60
     assert settings.slack_webhook_url is None
 
 

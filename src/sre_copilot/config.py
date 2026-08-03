@@ -21,7 +21,9 @@ class Settings(BaseSettings):
 
     # Downstream integrations (wired in later phases).
     slack_webhook_url: str | None = None
+    # Empty URL disables metrics correlation entirely.
     prometheus_url: str = "http://prometheus:9090"
+    prometheus_timeout_seconds: float = 5.0
     chroma_persist_dir: str = ".chroma"
     runbooks_dir: str = "runbooks"
     llm_model: str = "gpt-4o-mini"
@@ -33,6 +35,10 @@ class Settings(BaseSettings):
     embedding_backend: Literal["hash", "sentence-transformers"] = "hash"
     embedding_model: str = "all-MiniLM-L6-v2"
     retrieval_top_k: int = 3
+
+    # Metrics correlation.
+    metrics_window_minutes: int = 30
+    metrics_step_seconds: int = 60
 
 
 @lru_cache
