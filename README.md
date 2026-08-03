@@ -11,7 +11,7 @@ diagnosis plus suggested remediation steps to Slack.
 See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
 plan, and the current resume point.
 
-Current phase: **Phase 2 — RAG Pipeline** ✅
+Current phase: **Phase 3 — Metrics Correlation** ✅
 
 ## Stack
 
@@ -35,8 +35,10 @@ Endpoints so far:
 
 - `GET /healthz` — liveness probe
 - `POST /api/v1/alerts` — Alertmanager webhook receiver; each accepted alert
-  is matched against the runbook index and the response `detail.runbooks`
-  carries the top-k excerpts (runbook, section, similarity score)
+  is matched against the runbook index and correlated with recent Prometheus
+  metrics. The response `detail.runbooks` carries the top-k excerpts (runbook,
+  section, similarity score) and `detail.metrics` a per-series summary (name,
+  point count, latest value) — `null` when correlation is disabled
 
 ## Runbook RAG
 
@@ -54,3 +56,23 @@ Embedding backend is selectable via `SRE_COPILOT_EMBEDDING_BACKEND`:
 
 Retrieval fan-out per alert is controlled by `SRE_COPILOT_RETRIEVAL_TOP_K`
 (default 3).
+
+## Metrics correlation
+
+Each alert is correlated with recent Prometheus metrics
+(`src/sre_copilot/metrics/`): the correlator builds a PromQL label selector
+from the alert's `namespace`/`pod`/`container` labels and runs range queries
+for CPU usage, working-set memory, and container restarts over a trailing
+window.
+
+Settings:
+
+- `SRE_COPILOT_PROMETHEUS_URL` — base URL of the Prometheus HTTP API
+  (default `http://prometheus:9090`); set empty to disable correlation
+- `SRE_COPILOT_PROMETHEUS_TIMEOUT_SECONDS` (default 5)
+- `SRE_COPILOT_METRICS_WINDOW_MINUTES` (default 30) and
+  `SRE_COPILOT_METRICS_STEP_SECONDS` (default 60) — query window and resolution
+
+Correlation degrades gracefully: alerts without identifying labels skip the
+queries, and an unreachable Prometheus yields an empty snapshot with the error
+recorded — the webhook ack is never blocked by a Prometheus outage.

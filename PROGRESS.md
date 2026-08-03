@@ -61,10 +61,10 @@ Components:
       ImagePullBackOff, high CPU, node NotReady)
 - [x] Tests: chunking, retrieval ranking (mocked embeddings where needed)
 
-### Phase 3 — Metrics Correlation (Night 3)
-- [ ] Prometheus HTTP API client (query_range, label extraction from alert)
-- [ ] Correlation service: pull recent metrics for the alerting pod/namespace
-- [ ] Tests with mocked Prometheus responses
+### Phase 3 — Metrics Correlation (Night 3) ✅
+- [x] Prometheus HTTP API client (query_range, label extraction from alert)
+- [x] Correlation service: pull recent metrics for the alerting pod/namespace
+- [x] Tests with mocked Prometheus responses
 
 ### Phase 4 — LLM Diagnosis (Night 4)
 - [ ] LLM client interface + OpenAI-compatible implementation
@@ -122,15 +122,43 @@ Components:
   (tests use distinct collection names).
 - Test suite: 33 tests, all passing; lint clean.
 
-## Resume Point (Night 3)
+### Night 3
+- Built the metrics correlation stage (`src/sre_copilot/metrics/`):
+  - `models.py` — `MetricPoint` / `MetricSeries` (with `latest_value`) /
+    `MetricsSnapshot` dataclasses; snapshots carry an `error` field so
+    failures degrade gracefully instead of raising.
+  - `client.py` — `PrometheusClient`, an async httpx wrapper around
+    `/api/v1/query_range` that parses matrix results. Prometheus query errors
+    (HTTP 4xx with `"status": "error"` body) raise `PrometheusError`; 5xx and
+    transport failures surface as `httpx.HTTPError`.
+  - `correlator.py` — `MetricsCorrelator` builds a PromQL selector from the
+    alert's `namespace`/`pod`/`container` labels and range-queries CPU rate,
+    working-set memory, and restarts (1h increase) over a trailing window
+    (default 30m / 60s step). `from_settings()` returns `None` when
+    `SRE_COPILOT_PROMETHEUS_URL` is empty — correlation is opt-out via config.
+- Wired the correlator into `AlertPipeline` (`metrics_for(fingerprint)`) and
+  the webhook ack: `detail.metrics` now maps each fingerprint to a compact
+  series summary (name, point count, latest value) or `null` when disabled.
+- New settings: `SRE_COPILOT_PROMETHEUS_TIMEOUT_SECONDS` (5),
+  `SRE_COPILOT_METRICS_WINDOW_MINUTES` (30), `SRE_COPILOT_METRICS_STEP_SECONDS` (60).
+- Gotcha hit: Prometheus reports bad queries as HTTP 400 with a JSON error
+  body, so the client must inspect the payload *before* `raise_for_status()`,
+  and only when the content-type is JSON.
+- Test suite: 48 tests, all passing; lint + format clean. Tests mock
+  Prometheus with `httpx.MockTransport` — no live server in CI; the session
+  conftest blanks `SRE_COPILOT_PROMETHEUS_URL` so the app fixture stays offline.
 
-Start **Phase 3 — Metrics Correlation**:
-1. Create `src/sre_copilot/metrics/` with a Prometheus HTTP API client
-   (`/api/v1/query_range`, async httpx) and a correlation service that
-   extracts pod/namespace labels from the alert and pulls recent metrics
-   (CPU, memory, restarts).
-2. Wire the correlation stage into `AlertPipeline` behind settings
-   (`SRE_COPILOT_PROMETHEUS_URL`), degrading gracefully when Prometheus is
-   unreachable.
-3. Tests with mocked Prometheus responses (httpx MockTransport or respx-style
-   monkeypatching) — no live Prometheus in CI.
+## Resume Point (Night 4)
+
+Start **Phase 4 — LLM Diagnosis**:
+1. Create `src/sre_copilot/llm/` with a provider-agnostic client interface
+   plus an OpenAI-compatible implementation (base URL / API key / model from
+   settings: `SRE_COPILOT_LLM_MODEL`, `SRE_COPILOT_LLM_API_KEY` already exist;
+   add `SRE_COPILOT_LLM_BASE_URL` and a timeout if needed).
+2. Prompt builder: alert + runbook excerpts (from `pipeline.retrieval_for`) +
+   metrics summary (from `pipeline.metrics_for`) → structured diagnosis
+   (likely cause, remediation steps) with a Pydantic output model.
+3. Wire a diagnosis stage into `AlertPipeline` and the webhook ack
+   (`detail.diagnosis`), disabled when no LLM API key is configured.
+4. Tests with fully mocked LLM calls (fake client implementing the interface)
+   — no live LLM calls in CI.
