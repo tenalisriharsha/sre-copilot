@@ -66,11 +66,11 @@ Components:
 - [x] Correlation service: pull recent metrics for the alerting pod/namespace
 - [x] Tests with mocked Prometheus responses
 
-### Phase 4 — LLM Diagnosis (Night 4)
-- [ ] LLM client interface + OpenAI-compatible implementation
-- [ ] Prompt builder: alert + runbook excerpts + metrics summary
-- [ ] Diagnosis service returning structured output (cause, remediation steps)
-- [ ] Tests with fully mocked LLM calls
+### Phase 4 — LLM Diagnosis (Night 4) ✅
+- [x] LLM client interface + OpenAI-compatible implementation
+- [x] Prompt builder: alert + runbook excerpts + metrics summary
+- [x] Diagnosis service returning structured output (cause, remediation steps)
+- [x] Tests with fully mocked LLM calls
 
 ### Phase 5 — Slack Notification (Night 5)
 - [ ] Slack client (webhook + Block Kit message builder)
@@ -148,17 +148,49 @@ Components:
   Prometheus with `httpx.MockTransport` — no live server in CI; the session
   conftest blanks `SRE_COPILOT_PROMETHEUS_URL` so the app fixture stays offline.
 
-## Resume Point (Night 4)
+### Night 4
+- Built the LLM diagnosis stage (`src/sre_copilot/llm/`):
+  - `models.py` — `Diagnosis` Pydantic model: `likely_cause`,
+    `confidence` (low/medium/high), `remediation_steps`.
+  - `client.py` — `LLMClient` protocol (`complete_json(system, user) -> str`,
+    the minimal seam tests fake) and `OpenAICompatibleClient`, an async httpx
+    wrapper for OpenAI-compatible `/chat/completions` APIs in JSON mode
+    (`response_format: json_object`, bearer auth, temperature 0.2). All
+    transport/HTTP/malformed-payload failures raise `LLMError`.
+  - `prompts.py` — `build_messages(alert, hits, snapshot)` → (system, user);
+    the system prompt pins the Diagnosis JSON schema, the user prompt embeds
+    the alert (labels + annotations as JSON), runbook excerpts (title,
+    section, score, text) and a per-series metrics summary. Missing runbooks,
+    disabled metrics and metrics errors each degrade to an explicit sentence.
+  - `diagnosis.py` — `DiagnosisService` builds the prompt, calls the client
+    and validates the response with `Diagnosis.model_validate_json`;
+    LLM/validation failures re-raise as `LLMError`. `from_settings()` returns
+    `None` when `SRE_COPILOT_LLM_API_KEY` is unset — diagnosis is opt-in.
+- Wired the diagnoser into `AlertPipeline` (`diagnosis_for(fingerprint)`),
+  `create_app` and the webhook ack: `detail.diagnosis` maps each fingerprint
+  to the structured diagnosis or `null`. An `LLMError` is logged and recorded
+  as "no diagnosis" — the alert is still accepted and queued.
+- New settings: `SRE_COPILOT_LLM_BASE_URL` (`https://api.openai.com/v1`),
+  `SRE_COPILOT_LLM_TIMEOUT_SECONDS` (30).
+- Gotcha hit: httpx normalizes `base_url` with a trailing slash — compare
+  `str(client.base_url)` in tests, not the `URL` object against a string.
+- Test suite: 68 tests, all passing; lint + format clean. LLM tests use
+  `httpx.MockTransport` for the client and a `FakeLLMClient` implementing the
+  protocol for the service/pipeline — no live LLM calls in CI.
 
-Start **Phase 4 — LLM Diagnosis**:
-1. Create `src/sre_copilot/llm/` with a provider-agnostic client interface
-   plus an OpenAI-compatible implementation (base URL / API key / model from
-   settings: `SRE_COPILOT_LLM_MODEL`, `SRE_COPILOT_LLM_API_KEY` already exist;
-   add `SRE_COPILOT_LLM_BASE_URL` and a timeout if needed).
-2. Prompt builder: alert + runbook excerpts (from `pipeline.retrieval_for`) +
-   metrics summary (from `pipeline.metrics_for`) → structured diagnosis
-   (likely cause, remediation steps) with a Pydantic output model.
-3. Wire a diagnosis stage into `AlertPipeline` and the webhook ack
-   (`detail.diagnosis`), disabled when no LLM API key is configured.
-4. Tests with fully mocked LLM calls (fake client implementing the interface)
-   — no live LLM calls in CI.
+## Resume Point (Night 5)
+
+Start **Phase 5 — Slack Notification**:
+1. Create `src/sre_copilot/slack/` with an async Slack client (incoming
+   webhook via `SRE_COPILOT_SLACK_WEBHOOK_URL`, which already exists in
+   settings) plus a Block Kit message builder: alert header (name, severity,
+   namespace/pod), the diagnosis (cause, confidence, remediation steps), the
+   top runbook excerpt and the metrics summary.
+2. Wire a notification stage into `AlertPipeline` after diagnosis, disabled
+   when no webhook URL is configured; record delivery per fingerprint so the
+   webhook ack can report it (`detail.slack`).
+3. This completes the end-to-end pipeline: alert → RAG → metrics → LLM →
+   Slack.
+4. Tests: Block Kit message formatting (severity colors, sections, fallbacks
+   when diagnosis/metrics are missing) and a mocked Slack endpoint
+   (`httpx.MockTransport`) — no live Slack calls in CI.

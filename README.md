@@ -11,7 +11,7 @@ diagnosis plus suggested remediation steps to Slack.
 See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
 plan, and the current resume point.
 
-Current phase: **Phase 3 — Metrics Correlation** ✅
+Current phase: **Phase 4 — LLM Diagnosis** ✅
 
 ## Stack
 
@@ -35,10 +35,12 @@ Endpoints so far:
 
 - `GET /healthz` — liveness probe
 - `POST /api/v1/alerts` — Alertmanager webhook receiver; each accepted alert
-  is matched against the runbook index and correlated with recent Prometheus
-  metrics. The response `detail.runbooks` carries the top-k excerpts (runbook,
-  section, similarity score) and `detail.metrics` a per-series summary (name,
-  point count, latest value) — `null` when correlation is disabled
+  is matched against the runbook index, correlated with recent Prometheus
+  metrics, and diagnosed by the LLM stage. The response `detail.runbooks`
+  carries the top-k excerpts (runbook, section, similarity score),
+  `detail.metrics` a per-series summary (name, point count, latest value),
+  and `detail.diagnosis` the structured diagnosis (likely cause, confidence,
+  remediation steps) — each `null` when its stage is disabled
 
 ## Runbook RAG
 
@@ -76,3 +78,25 @@ Settings:
 Correlation degrades gracefully: alerts without identifying labels skip the
 queries, and an unreachable Prometheus yields an empty snapshot with the error
 recorded — the webhook ack is never blocked by a Prometheus outage.
+
+## LLM diagnosis
+
+Each alert is diagnosed by an LLM stage (`src/sre_copilot/llm/`): a prompt
+builder assembles the alert, its runbook excerpts and its metrics summary,
+and a provider-agnostic chat client (`OpenAICompatibleClient`, any
+OpenAI-compatible `/chat/completions` API in JSON mode) returns a structured
+`Diagnosis` — likely cause, confidence (`low`/`medium`/`high`) and ordered
+remediation steps, validated against a Pydantic schema.
+
+Settings:
+
+- `SRE_COPILOT_LLM_API_KEY` — unset/empty disables the diagnosis stage
+  entirely (default)
+- `SRE_COPILOT_LLM_MODEL` (default `gpt-4o-mini`),
+  `SRE_COPILOT_LLM_BASE_URL` (default `https://api.openai.com/v1`) and
+  `SRE_COPILOT_LLM_TIMEOUT_SECONDS` (default 30)
+
+Like the other stages, diagnosis degrades gracefully: an LLM or response
+validation failure is logged and recorded as "no diagnosis" — the alert is
+still accepted and queued. Tests use a fake client implementing the
+`LLMClient` protocol; no live LLM calls in CI.
