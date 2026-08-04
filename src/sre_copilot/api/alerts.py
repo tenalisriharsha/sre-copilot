@@ -55,5 +55,13 @@ async def receive_alerts(payload: WebhookPayload, request: Request) -> AlertAck:
                 fingerprint: _metrics_summary(pipeline.metrics_for(fingerprint))
                 for fingerprint in fingerprints
             },
+            "diagnosis": {
+                fingerprint: (
+                    diagnosis.model_dump()
+                    if (diagnosis := pipeline.diagnosis_for(fingerprint))
+                    else None
+                )
+                for fingerprint in fingerprints
+            },
         },
     )

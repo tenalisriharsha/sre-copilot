@@ -73,6 +73,40 @@ async def test_receive_alerts_attaches_runbook_hits(client, alertmanager_payload
     assert top_hit["score"] > 0
 
 
+async def test_receive_alerts_diagnosis_null_when_disabled(client, alertmanager_payload):
+    """Without an LLM API key, diagnosis degrades to null (no failure)."""
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    diagnosis = resp.json()["detail"]["diagnosis"]
+    assert diagnosis == {"a1b2c3d4e5f60718": None, "f60718a1b2c3d4e5": None}
+
+
+async def test_receive_alerts_attaches_diagnosis(app, client, alertmanager_payload):
+    """With a diagnoser wired, each fingerprint carries the structured diagnosis."""
+
+    from sre_copilot.llm.diagnosis import DiagnosisService
+    from sre_copilot.pipeline import AlertPipeline
+
+    class FakeLLMClient:
+        async def complete_json(self, *, system: str, user: str) -> str:
+            return (
+                '{"likely_cause": "bad deploy", "confidence": "medium", '
+                '"remediation_steps": ["roll back"]}'
+            )
+
+    diagnoser = DiagnosisService(client=FakeLLMClient())
+    app.state.pipeline = AlertPipeline(retriever=app.state.retriever, diagnoser=diagnoser)
+
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    diagnosis = resp.json()["detail"]["diagnosis"]
+    assert set(diagnosis) == {"a1b2c3d4e5f60718", "f60718a1b2c3d4e5"}
+    first = diagnosis["a1b2c3d4e5f60718"]
+    assert first["likely_cause"] == "bad deploy"
+    assert first["confidence"] == "medium"
+    assert first["remediation_steps"] == ["roll back"]
+
+
 async def test_receive_alerts_rejects_invalid_payload(client):
     resp = await client.post("/api/v1/alerts", json={"alerts": [{"labels": {}}]})
     assert resp.status_code == 422

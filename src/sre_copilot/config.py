@@ -26,8 +26,11 @@ class Settings(BaseSettings):
     prometheus_timeout_seconds: float = 5.0
     chroma_persist_dir: str = ".chroma"
     runbooks_dir: str = "runbooks"
+    # LLM diagnosis. No API key disables the diagnosis stage entirely.
     llm_model: str = "gpt-4o-mini"
     llm_api_key: str | None = None
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_timeout_seconds: float = 30.0
 
     # RAG pipeline.
     # "hash" is a deterministic, dependency-free embedder (default, works
