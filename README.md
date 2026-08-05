@@ -11,7 +11,7 @@ diagnosis plus suggested remediation steps to Slack.
 See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
 plan, and the current resume point.
 
-Current phase: **Phase 4 — LLM Diagnosis** ✅
+Current phase: **Phase 5 — Slack Notification** ✅
 
 ## Stack
 
@@ -36,11 +36,12 @@ Endpoints so far:
 - `GET /healthz` — liveness probe
 - `POST /api/v1/alerts` — Alertmanager webhook receiver; each accepted alert
   is matched against the runbook index, correlated with recent Prometheus
-  metrics, and diagnosed by the LLM stage. The response `detail.runbooks`
-  carries the top-k excerpts (runbook, section, similarity score),
-  `detail.metrics` a per-series summary (name, point count, latest value),
-  and `detail.diagnosis` the structured diagnosis (likely cause, confidence,
-  remediation steps) — each `null` when its stage is disabled
+  metrics, diagnosed by the LLM stage, and posted to Slack. The response
+  `detail.runbooks` carries the top-k excerpts (runbook, section, similarity
+  score), `detail.metrics` a per-series summary (name, point count, latest
+  value), `detail.diagnosis` the structured diagnosis (likely cause,
+  confidence, remediation steps), and `detail.slack` the delivery status
+  (`{"delivered": true|false}`) — each `null` when its stage is disabled
 
 ## Runbook RAG
 
@@ -100,3 +101,24 @@ Like the other stages, diagnosis degrades gracefully: an LLM or response
 validation failure is logged and recorded as "no diagnosis" — the alert is
 still accepted and queued. Tests use a fake client implementing the
 `LLMClient` protocol; no live LLM calls in CI.
+
+## Slack notification
+
+The final pipeline stage (`src/sre_copilot/slack/`) posts one Block Kit
+message per alert to a Slack incoming webhook: a color-coded attachment
+(severity sidebar: `danger` for critical, `warning` for warning, `good` for
+resolved), a header with status and alertname, a context line (severity,
+namespace, pod, fingerprint), the alert summary, the LLM diagnosis with
+numbered remediation steps, the top runbook excerpt, and the metrics summary.
+Every piece degrades to an explicit fallback sentence when its stage is
+disabled or failed.
+
+Settings:
+
+- `SRE_COPILOT_SLACK_WEBHOOK_URL` — unset/empty disables the stage entirely
+  (default)
+- `SRE_COPILOT_SLACK_TIMEOUT_SECONDS` (default 5)
+
+A failed delivery is logged and recorded per fingerprint
+(`detail.slack.delivered: false`) — the alert is still accepted and queued.
+Tests mock the webhook with `httpx.MockTransport`; no live Slack calls in CI.
