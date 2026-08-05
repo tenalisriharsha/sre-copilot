@@ -11,6 +11,7 @@ from sre_copilot.llm.diagnosis import DiagnosisService
 from sre_copilot.metrics.correlator import MetricsCorrelator
 from sre_copilot.pipeline import AlertPipeline
 from sre_copilot.rag.retriever import RunbookRetriever
+from sre_copilot.slack.notifier import SlackNotifier
 
 
 def create_app() -> FastAPI:
@@ -21,10 +22,12 @@ def create_app() -> FastAPI:
     app.state.retriever = RunbookRetriever.from_settings(settings)
     app.state.correlator = MetricsCorrelator.from_settings(settings)
     app.state.diagnoser = DiagnosisService.from_settings(settings)
+    app.state.notifier = SlackNotifier.from_settings(settings)
     app.state.pipeline = AlertPipeline(
         retriever=app.state.retriever,
         correlator=app.state.correlator,
         diagnoser=app.state.diagnoser,
+        notifier=app.state.notifier,
     )
     app.include_router(health.router)
     app.include_router(alerts.router)

@@ -116,3 +116,38 @@ async def test_receive_alerts_accepts_empty_group(client):
     resp = await client.post("/api/v1/alerts", json={"status": "resolved", "alerts": []})
     assert resp.status_code == 202
     assert resp.json()["received"] == 0
+
+
+async def test_receive_alerts_slack_null_when_notifier_disabled(client, alertmanager_payload):
+    """Without a webhook URL, the slack detail degrades to null (no failure)."""
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    slack = resp.json()["detail"]["slack"]
+    assert slack == {"a1b2c3d4e5f60718": None, "f60718a1b2c3d4e5": None}
+
+
+async def test_receive_alerts_reports_slack_delivery(app, client, alertmanager_payload):
+    """With a notifier wired, each fingerprint reports its delivery status."""
+    from sre_copilot.pipeline import AlertPipeline
+    from sre_copilot.slack.notifier import SlackNotifier
+
+    class FakeSlackClient:
+        def __init__(self) -> None:
+            self.posts: list[dict] = []
+
+        async def post(self, message: dict) -> None:
+            self.posts.append(message)
+
+    fake = FakeSlackClient()
+    app.state.pipeline = AlertPipeline(
+        retriever=app.state.retriever, notifier=SlackNotifier(client=fake)
+    )
+
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    slack = resp.json()["detail"]["slack"]
+    assert slack == {
+        "a1b2c3d4e5f60718": {"delivered": True},
+        "f60718a1b2c3d4e5": {"delivered": True},
+    }
+    assert len(fake.posts) == 2

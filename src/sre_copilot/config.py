@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "info"
 
-    # Downstream integrations (wired in later phases).
+    # Slack notification. No webhook URL disables the stage entirely.
     slack_webhook_url: str | None = None
+    slack_timeout_seconds: float = 5.0
     # Empty URL disables metrics correlation entirely.
     prometheus_url: str = "http://prometheus:9090"
     prometheus_timeout_seconds: float = 5.0

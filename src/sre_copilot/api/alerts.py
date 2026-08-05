@@ -63,5 +63,13 @@ async def receive_alerts(payload: WebhookPayload, request: Request) -> AlertAck:
                 )
                 for fingerprint in fingerprints
             },
+            "slack": {
+                fingerprint: (
+                    {"delivered": delivered}
+                    if (delivered := pipeline.slack_for(fingerprint)) is not None
+                    else None
+                )
+                for fingerprint in fingerprints
+            },
         },
     )
