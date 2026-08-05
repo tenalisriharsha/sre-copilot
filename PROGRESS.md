@@ -72,10 +72,10 @@ Components:
 - [x] Diagnosis service returning structured output (cause, remediation steps)
 - [x] Tests with fully mocked LLM calls
 
-### Phase 5 — Slack Notification (Night 5)
-- [ ] Slack client (webhook + Block Kit message builder)
-- [ ] End-to-end pipeline wiring: alert → RAG → metrics → LLM → Slack
-- [ ] Tests: message formatting, mocked Slack API
+### Phase 5 — Slack Notification (Night 5) ✅
+- [x] Slack client (webhook + Block Kit message builder)
+- [x] End-to-end pipeline wiring: alert → RAG → metrics → LLM → Slack
+- [x] Tests: message formatting, mocked Slack API
 
 ### Phase 6 — Deployment & Polish (Night 6)
 - [ ] Multi-stage Dockerfile
@@ -178,19 +178,50 @@ Components:
   `httpx.MockTransport` for the client and a `FakeLLMClient` implementing the
   protocol for the service/pipeline — no live LLM calls in CI.
 
-## Resume Point (Night 5)
+### Night 5
+- Built the Slack notification stage (`src/sre_copilot/slack/`):
+  - `client.py` — `SlackWebhookClient`, an async httpx wrapper for incoming
+    webhooks. Transport/HTTP failures raise `SlackError`, and so does a 200
+    whose body is not `ok` (Slack returns error descriptions with a 200).
+  - `messages.py` — `build_message(alert, hits, snapshot, diagnosis)` →
+    webhook payload: plain-text fallback plus one attachment whose `color`
+    sidebar encodes severity (critical→danger, warning→warning,
+    resolved→good, else `#439FE0`). Blocks: header (status + alertname,
+    truncated to Slack's 150-char limit, icon included), context line
+    (severity/namespace/pod/fingerprint), summary annotation, diagnosis
+    (cause, confidence, numbered remediation steps), top runbook excerpt
+    (title, section, score; truncated to 600 chars) and a per-series metrics
+    summary. Missing diagnosis/runbooks/metrics and metrics errors each
+    degrade to an explicit fallback sentence.
+  - `notifier.py` — `SlackNotifier` builds the message and posts it;
+    `from_settings()` returns `None` when `SRE_COPILOT_SLACK_WEBHOOK_URL` is
+    unset — the stage is opt-in.
+- Wired the notifier into `AlertPipeline` (final stage, after diagnosis),
+  `create_app` and the webhook ack: `detail.slack` maps each fingerprint to
+  `{"delivered": true|false}` or `null` when disabled. A `SlackError` is
+  logged and recorded as `delivered: false` — ingestion is never blocked.
+- New setting: `SRE_COPILOT_SLACK_TIMEOUT_SECONDS` (5).
+- Gotchas hit: httpx serializes `json=` compactly (assert parsed JSON in
+  tests, not raw bytes), Slack header blocks cap at 150 chars including the
+  emoji code, and context blocks have `elements` instead of `text` (guard
+  block traversal in tests).
+- Test suite: 92 tests, all passing; lint + format clean. Slack tests use
+  `httpx.MockTransport` for the client and a `FakeSlackClient` for the
+  notifier/pipeline — no live Slack calls in CI. This completes the
+  end-to-end pipeline: alert → RAG → metrics → LLM → Slack.
 
-Start **Phase 5 — Slack Notification**:
-1. Create `src/sre_copilot/slack/` with an async Slack client (incoming
-   webhook via `SRE_COPILOT_SLACK_WEBHOOK_URL`, which already exists in
-   settings) plus a Block Kit message builder: alert header (name, severity,
-   namespace/pod), the diagnosis (cause, confidence, remediation steps), the
-   top runbook excerpt and the metrics summary.
-2. Wire a notification stage into `AlertPipeline` after diagnosis, disabled
-   when no webhook URL is configured; record delivery per fingerprint so the
-   webhook ack can report it (`detail.slack`).
-3. This completes the end-to-end pipeline: alert → RAG → metrics → LLM →
-   Slack.
-4. Tests: Block Kit message formatting (severity colors, sections, fallbacks
-   when diagnosis/metrics are missing) and a mocked Slack endpoint
-   (`httpx.MockTransport`) — no live Slack calls in CI.
+## Resume Point (Night 6)
+
+Start **Phase 6 — Deployment & Polish** (final phase):
+1. Multi-stage `Dockerfile` (builder stage for deps, slim runtime stage,
+   non-root user, `uvicorn sre_copilot.main:app` entrypoint).
+2. Helm chart under `chart/` (or `helm/`): Deployment (env vars from
+   ConfigMap/Secret, liveness probe on `/healthz`), Service, ConfigMap
+   (non-secret settings), Secret (LLM API key, Slack webhook URL), HPA.
+3. CI workflow `.github/workflows/ci.yml`: ruff check + format --check,
+   pytest on push/PR.
+4. README polish: architecture diagram, quickstart with Docker/Helm, demo
+   instructions (sample Alertmanager payload via curl).
+5. After everything passes: write `DAILY_REPORT.md` (what was built across
+   all nights, test results, known limitations, future ideas) and set
+   `STATUS: COMPLETE` in this file.
