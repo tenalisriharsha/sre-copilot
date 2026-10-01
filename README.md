@@ -20,6 +20,10 @@ The interactive API docs FastAPI generates automatically:
 
 ![A real Alertmanager-shaped webhook POSTed to /api/v1/alerts — RAG retrieval finds real runbook matches, while metrics/diagnosis/Slack degrade gracefully with no Prometheus, LLM key, or webhook configured](docs/screenshots/04-alert-ingested.png)
 
+![The GET /healthz endpoint expanded in Swagger](docs/screenshots/05-swagger-healthz-endpoint.png)
+
+![The same webhook with status: resolved — group_status flips accordingly, same pipeline](docs/screenshots/06-alert-resolved.png)
+
 </details>
 
 ## Project Status
