@@ -5,6 +5,23 @@ Alertmanager alerts via webhook, retrieves matching runbooks with a RAG
 pipeline (ChromaDB + embeddings), correlates with recent metrics, and posts a
 diagnosis plus suggested remediation steps to Slack.
 
+## Preview
+
+The interactive API docs FastAPI generates automatically:
+
+![Swagger UI: /healthz and /api/v1/alerts endpoints](docs/screenshots/01-swagger-overview.png)
+
+<details>
+<summary>More views</summary>
+
+![The POST /api/v1/alerts endpoint expanded, showing its real request schema](docs/screenshots/02-swagger-alerts-endpoint.png)
+
+![curl GET /healthz](docs/screenshots/03-healthz.png)
+
+![A real Alertmanager-shaped webhook POSTed to /api/v1/alerts — RAG retrieval finds real runbook matches, while metrics/diagnosis/Slack degrade gracefully with no Prometheus, LLM key, or webhook configured](docs/screenshots/04-alert-ingested.png)
+
+</details>
+
 ## Project Status
 
 **In active development** — built in public, one phase per night.
