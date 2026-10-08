@@ -41,7 +41,7 @@ Current phase: **Phase 5 — Slack Notification** ✅
 - Prometheus HTTP API (metrics correlation)
 - Pluggable LLM client, fully mocked in tests
 - Slack Block Kit notifications
-- Helm chart deployment
+- Helm chart deployment (planned, Phase 6; not yet in the repo)
 
 ## Quickstart (dev)
 
@@ -99,7 +99,9 @@ Settings:
 
 Correlation degrades gracefully: alerts without identifying labels skip the
 queries, and an unreachable Prometheus yields an empty snapshot with the error
-recorded — the webhook ack is never blocked by a Prometheus outage.
+recorded — a Prometheus outage never fails the webhook ack. Stages run
+inline in the request, so an unresponsive Prometheus can delay the ack by up
+to `SRE_COPILOT_PROMETHEUS_TIMEOUT_SECONDS` per alert.
 
 ## LLM diagnosis
 
