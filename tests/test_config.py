@@ -5,6 +5,8 @@ def test_settings_defaults(monkeypatch):
     # The session conftest blanks these for isolation; remove to test defaults.
     monkeypatch.delenv("SRE_COPILOT_PROMETHEUS_URL", raising=False)
     monkeypatch.delenv("SRE_COPILOT_CHROMA_PERSIST_DIR", raising=False)
+    monkeypatch.delenv("SRE_COPILOT_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SRE_COPILOT_SLACK_WEBHOOK_URL", raising=False)
     settings = Settings()
     assert settings.app_name == "sre-copilot"
     assert settings.environment == "development"

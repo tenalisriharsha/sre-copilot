@@ -153,6 +153,12 @@ async def test_receive_alerts_reports_slack_delivery(app, client, alertmanager_p
     assert len(fake.posts) == 2
 
 
+def test_app_fixture_never_wires_live_llm_or_slack(app):
+    """Env vars from the developer's shell must not enable live stages in tests."""
+    assert app.state.diagnoser is None
+    assert app.state.notifier is None
+
+
 async def test_receive_alerts_survives_non_prometheus_200(app, client, alertmanager_payload):
     """A proxy/login page answering 200 for Prometheus must not 500 the webhook."""
     import httpx

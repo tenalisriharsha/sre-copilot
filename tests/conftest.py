@@ -14,6 +14,10 @@ def _isolated_chroma_dir(tmp_path_factory):
     # Metrics correlation is disabled by default; tests that need it build
     # their own correlator with a mocked transport.
     os.environ["SRE_COPILOT_PROMETHEUS_URL"] = ""
+    # Same for the opt-in stages: a developer's real LLM key or Slack webhook
+    # in the shell must never turn the test suite into live API calls.
+    os.environ["SRE_COPILOT_LLM_API_KEY"] = ""
+    os.environ["SRE_COPILOT_SLACK_WEBHOOK_URL"] = ""
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
