@@ -103,3 +103,22 @@ async def test_query_range_propagates_connection_errors():
     with pytest.raises(httpx.ConnectError):
         await client.query_range("up", START, END, 60)
     await client.aclose()
+
+
+async def test_query_range_raises_prometheus_error_on_non_api_200():
+    """A 200 that is not a Prometheus payload (e.g. a proxy's HTML page)."""
+    client = make_client(lambda request: httpx.Response(200, text="<html>login</html>"))
+    with pytest.raises(PrometheusError, match="malformed"):
+        await client.query_range("up", START, END, 60)
+    await client.aclose()
+
+
+async def test_query_range_raises_prometheus_error_on_invalid_json():
+    client = make_client(
+        lambda request: httpx.Response(
+            200, content=b"{not json", headers={"content-type": "application/json"}
+        )
+    )
+    with pytest.raises(PrometheusError, match="invalid JSON"):
+        await client.query_range("up", START, END, 60)
+    await client.aclose()

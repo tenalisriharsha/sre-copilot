@@ -151,3 +151,26 @@ async def test_receive_alerts_reports_slack_delivery(app, client, alertmanager_p
         "f60718a1b2c3d4e5": {"delivered": True},
     }
     assert len(fake.posts) == 2
+
+
+async def test_receive_alerts_survives_non_prometheus_200(app, client, alertmanager_payload):
+    """A proxy/login page answering 200 for Prometheus must not 500 the webhook."""
+    import httpx
+
+    from sre_copilot.metrics.client import PrometheusClient
+    from sre_copilot.metrics.correlator import MetricsCorrelator
+    from sre_copilot.pipeline import AlertPipeline
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>sign in</html>")
+
+    correlator = MetricsCorrelator(
+        client=PrometheusClient("http://prometheus:9090", transport=httpx.MockTransport(handler))
+    )
+    app.state.pipeline = AlertPipeline(retriever=app.state.retriever, correlator=correlator)
+
+    resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
+    assert resp.status_code == 202
+    summary = resp.json()["detail"]["metrics"]["a1b2c3d4e5f60718"]
+    assert summary["series"] == []
+    assert "malformed" in summary["error"]

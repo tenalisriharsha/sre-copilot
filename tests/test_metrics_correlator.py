@@ -143,3 +143,11 @@ async def test_pipeline_records_snapshot_per_fingerprint():
     assert snapshot is not None
     assert len(snapshot.series) == len(QUERIES)
     assert pipeline.metrics_for("unknown") is None
+
+
+async def test_correlate_degrades_on_malformed_prometheus_response():
+    """A non-Prometheus 200 must yield an error snapshot, not raise."""
+    correlator = make_correlator(lambda request: httpx.Response(200, text="<html>proxy</html>"))
+    snapshot = await correlator.correlate(make_alert(namespace="payments"))
+    assert snapshot.series == ()
+    assert snapshot.error is not None
