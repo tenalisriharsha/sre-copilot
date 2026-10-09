@@ -64,10 +64,10 @@ class OpenAICompatibleClient:
         except httpx.HTTPError as exc:
             raise LLMError(f"LLM request failed: {exc}") from exc
 
-        payload: dict[str, Any] = resp.json()
         try:
+            payload: dict[str, Any] = resp.json()
             content = payload["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise LLMError("malformed chat completion response") from exc
         if not isinstance(content, str):
             raise LLMError("chat completion content is not text")

@@ -80,7 +80,7 @@ Components:
 ### Phase 6 — Deployment & Polish (Night 6)
 - [ ] Multi-stage Dockerfile
 - [ ] Helm chart (Deployment, Service, ConfigMap, Secret, HPA)
-- [ ] CI workflow (GitHub Actions: lint + tests)
+- [x] CI workflow (GitHub Actions: lint + tests)
 - [ ] README quickstart, architecture diagram, demo instructions
 
 ## Log

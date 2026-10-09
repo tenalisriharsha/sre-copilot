@@ -78,3 +78,10 @@ async def test_complete_json_raises_on_non_text_content():
     client = make_client(lambda request: httpx.Response(200, json=payload))
     with pytest.raises(LLMError, match="content is not text"):
         await client.complete_json(system="s", user="u")
+
+
+async def test_complete_json_raises_on_non_json_body():
+    """A 200 with a non-JSON body (e.g. a gateway's HTML page) is an LLMError."""
+    client = make_client(lambda request: httpx.Response(200, text="<html>gateway</html>"))
+    with pytest.raises(LLMError, match="malformed chat completion response"):
+        await client.complete_json(system="s", user="u")
