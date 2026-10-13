@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import PositiveFloat, PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +44,17 @@ class Settings(BaseSettings):
     # Metrics correlation.
     metrics_window_minutes: int = 30
     metrics_step_seconds: int = 60
+
+    # Background processing. The webhook acks after runbook retrieval; the
+    # metrics, diagnosis and Slack stages run in background tasks, at most
+    # ``pipeline_concurrency`` alerts at a time. Past ``pipeline_max_pending``
+    # unfinished alerts the webhook answers 503 so Alertmanager retries later.
+    pipeline_concurrency: PositiveInt = 4
+    pipeline_max_pending: PositiveInt = 1000
+    # Per-alert state (stage results, delivery dedupe) is forgotten after this
+    # TTL, and the oldest entries are dropped past the size cap.
+    alert_state_ttl_seconds: PositiveFloat = 3600.0
+    alert_state_max_entries: PositiveInt = 10_000
 
 
 @lru_cache

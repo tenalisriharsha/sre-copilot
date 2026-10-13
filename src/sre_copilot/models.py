@@ -51,3 +51,14 @@ class AlertAck(BaseModel):
     received: int
     fingerprints: list[str]
     detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AlertStatus(BaseModel):
+    """Processing state and stage results for one alert fingerprint."""
+
+    fingerprint: str
+    state: Literal["processing", "done"]
+    runbooks: list[dict[str, Any]]
+    metrics: dict[str, Any] | None
+    diagnosis: dict[str, Any] | None
+    slack: dict[str, Any] | None

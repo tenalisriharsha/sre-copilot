@@ -210,14 +210,26 @@ Components:
   notifier/pipeline — no live Slack calls in CI. This completes the
   end-to-end pipeline: alert → RAG → metrics → LLM → Slack.
 
+### Review follow-up
+- The slow stages (metrics, LLM, Slack) now run in background tasks with
+  bounded concurrency; the webhook acks after runbook retrieval. Retried
+  deliveries are deduplicated per (fingerprint, status, startsAt), and
+  per-alert state is bounded by a TTL and a size cap. New endpoint:
+  `GET /api/v1/alerts/{fingerprint}`. See README "Background processing".
+- `sentence-transformers` moved to the optional `embeddings` extra;
+  `constraints.txt` pins the dependency tree and CI installs from it.
+
 ## Resume Point (Night 6)
 
 Start **Phase 6 — Deployment & Polish** (final phase):
-1. Multi-stage `Dockerfile` (builder stage for deps, slim runtime stage,
-   non-root user, `uvicorn sre_copilot.main:app` entrypoint).
+1. Multi-stage `Dockerfile` (builder stage for deps installed with
+   `-c constraints.txt`, slim runtime stage, non-root user,
+   `uvicorn sre_copilot.main:app` entrypoint).
 2. Helm chart under `chart/` (or `helm/`): Deployment (env vars from
    ConfigMap/Secret, liveness probe on `/healthz`), Service, ConfigMap
    (non-secret settings), Secret (LLM API key, Slack webhook URL), HPA.
+   Retry dedupe state is per process: more than one replica needs shared
+   state (e.g. Redis) or Alertmanager retries can post twice.
 3. CI workflow `.github/workflows/ci.yml`: ruff check + format --check,
    pytest on push/PR.
 4. README polish: architecture diagram, quickstart with Docker/Helm, demo
