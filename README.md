@@ -68,14 +68,55 @@ uv pip compile pyproject.toml --all-extras --universal --python-version 3.12 \
 Endpoints so far:
 
 - `GET /healthz` — liveness probe
-- `POST /api/v1/alerts` — Alertmanager webhook receiver; each accepted alert
-  is matched against the runbook index, correlated with recent Prometheus
-  metrics, diagnosed by the LLM stage, and posted to Slack. The response
-  `detail.runbooks` carries the top-k excerpts (runbook, section, similarity
-  score), `detail.metrics` a per-series summary (name, point count, latest
-  value), `detail.diagnosis` the structured diagnosis (likely cause,
-  confidence, remediation steps), and `detail.slack` the delivery status
-  (`{"delivered": true|false}`) — each `null` when its stage is disabled
+- `POST /api/v1/alerts` — Alertmanager webhook receiver. Each alert is
+  matched against the runbook index while the request is open, then
+  correlated with recent Prometheus metrics, diagnosed by the LLM stage and
+  posted to Slack **in the background** after the `202` is sent (see
+  [Background processing](#background-processing)). In the response,
+  `detail.processing` gives each fingerprint's outcome (`scheduled`,
+  `duplicate` or `deferred`) and `detail.runbooks` its top-k excerpts
+  (runbook, section, similarity score). `detail.metrics`, `detail.diagnosis`
+  and `detail.slack` keep their shape but only hold what has already finished
+  when the ack is sent: `null` for a newly scheduled alert, the stored results
+  for a duplicate whose processing is complete.
+- `GET /api/v1/alerts/{fingerprint}` — processing state (`processing` or
+  `done`) and stage results for an alert: `runbooks`, `metrics` (a per-series
+  summary: name, point count, latest value), `diagnosis` (likely cause,
+  confidence, remediation steps) and `slack` (`{"delivered": true|false}`),
+  each `null` when its stage is disabled or has not finished. `404` once the
+  fingerprint is unknown or its state has expired.
+
+## Background processing
+
+Alertmanager waits for the webhook response and retries on timeout, so the
+request only does fast, local work (validation and runbook retrieval). The
+slow network stages (Prometheus, LLM, Slack) run in background tasks inside
+the same process.
+
+- **Bounded concurrency** — at most `SRE_COPILOT_PIPELINE_CONCURRENCY`
+  alerts (default 4) are in the slow stages at once; the rest wait their turn.
+- **Retry dedupe** — an alert is processed once per (fingerprint, status,
+  `startsAt`). A retried or repeated delivery of the same alert is
+  acknowledged with outcome `duplicate` and does not post to Slack again. A
+  resolution (`firing` → `resolved`) or a new occurrence (new `startsAt`) is
+  processed normally. Alerts without a fingerprint are never deduplicated.
+- **Backpressure** — once `SRE_COPILOT_PIPELINE_MAX_PENDING` alerts (default
+  1000) are unfinished, the webhook answers `503` and lists the `deferred`
+  fingerprints. Alertmanager retries; alerts from that group that were
+  already scheduled come back as `duplicate`, so only the deferred ones run.
+- **Bounded state** — per-alert results, the dedupe set and the in-memory
+  queue are dropped after `SRE_COPILOT_ALERT_STATE_TTL_SECONDS` (default
+  3600) and capped at `SRE_COPILOT_ALERT_STATE_MAX_ENTRIES` (default 10000),
+  oldest first. The TTL is also the dedupe window: Alertmanager re-sends a
+  still-firing alert every `repeat_interval` (default 4h), and such a resend
+  is posted again only if it arrives after the TTL.
+- **Shutdown** — on a graceful shutdown, in-flight alerts get 10 seconds to
+  finish and are then cancelled.
+
+Limits: this state is in memory, per process. A restart forgets it, and
+alerts acknowledged but not yet finished at a hard kill are lost (Alertmanager
+only re-sends them when the group changes or after its `repeat_interval`). With several replicas, a
+retry routed to a different replica is not recognized as a duplicate.
 
 ## Runbook RAG
 
@@ -122,9 +163,8 @@ Settings:
 
 Correlation degrades gracefully: alerts without identifying labels skip the
 queries, and an unreachable Prometheus yields an empty snapshot with the error
-recorded — a Prometheus outage never fails the webhook ack. Stages run
-inline in the request, so an unresponsive Prometheus can delay the ack by up
-to `SRE_COPILOT_PROMETHEUS_TIMEOUT_SECONDS` per alert.
+recorded — a Prometheus outage never fails or delays the webhook ack, since
+correlation runs after the ack (see [Background processing](#background-processing)).
 
 ## LLM diagnosis
 
@@ -145,7 +185,7 @@ Settings:
 
 Like the other stages, diagnosis degrades gracefully: an LLM or response
 validation failure is logged and recorded as "no diagnosis" — the alert is
-still accepted and queued. Tests use a fake client implementing the
+still accepted and the Slack stage still runs. Tests use a fake client implementing the
 `LLMClient` protocol; no live LLM calls in CI.
 
 ## Slack notification
@@ -166,5 +206,6 @@ Settings:
 - `SRE_COPILOT_SLACK_TIMEOUT_SECONDS` (default 5)
 
 A failed delivery is logged and recorded per fingerprint
-(`detail.slack.delivered: false`) — the alert is still accepted and queued.
+(`slack.delivered: false` from `GET /api/v1/alerts/{fingerprint}`) — the
+alert is still accepted.
 Tests mock the webhook with `httpx.MockTransport`; no live Slack calls in CI.
