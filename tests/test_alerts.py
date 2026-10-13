@@ -36,9 +36,11 @@ async def test_receive_alerts_attaches_metrics_summary(app, client, alertmanager
 
     resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
     assert resp.status_code == 202
-    metrics = resp.json()["detail"]["metrics"]
-    assert set(metrics) == {"a1b2c3d4e5f60718", "f60718a1b2c3d4e5"}
-    summary = metrics["a1b2c3d4e5f60718"]
+    await app.state.pipeline.join()
+    status = await client.get("/api/v1/alerts/a1b2c3d4e5f60718")
+    assert status.status_code == 200
+    assert status.json()["state"] == "done"
+    summary = status.json()["metrics"]
     assert summary["error"] is None
     assert summary["window_minutes"] == 30
     names = [series["name"] for series in summary["series"]]
@@ -99,9 +101,9 @@ async def test_receive_alerts_attaches_diagnosis(app, client, alertmanager_paylo
 
     resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
     assert resp.status_code == 202
-    diagnosis = resp.json()["detail"]["diagnosis"]
-    assert set(diagnosis) == {"a1b2c3d4e5f60718", "f60718a1b2c3d4e5"}
-    first = diagnosis["a1b2c3d4e5f60718"]
+    await app.state.pipeline.join()
+    status = await client.get("/api/v1/alerts/a1b2c3d4e5f60718")
+    first = status.json()["diagnosis"]
     assert first["likely_cause"] == "bad deploy"
     assert first["confidence"] == "medium"
     assert first["remediation_steps"] == ["roll back"]
@@ -145,11 +147,10 @@ async def test_receive_alerts_reports_slack_delivery(app, client, alertmanager_p
 
     resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
     assert resp.status_code == 202
-    slack = resp.json()["detail"]["slack"]
-    assert slack == {
-        "a1b2c3d4e5f60718": {"delivered": True},
-        "f60718a1b2c3d4e5": {"delivered": True},
-    }
+    await app.state.pipeline.join()
+    for fingerprint in ("a1b2c3d4e5f60718", "f60718a1b2c3d4e5"):
+        status = await client.get(f"/api/v1/alerts/{fingerprint}")
+        assert status.json()["slack"] == {"delivered": True}
     assert len(fake.posts) == 2
 
 
@@ -177,6 +178,8 @@ async def test_receive_alerts_survives_non_prometheus_200(app, client, alertmana
 
     resp = await client.post("/api/v1/alerts", json=alertmanager_payload)
     assert resp.status_code == 202
-    summary = resp.json()["detail"]["metrics"]["a1b2c3d4e5f60718"]
+    await app.state.pipeline.join()
+    status = await client.get("/api/v1/alerts/a1b2c3d4e5f60718")
+    summary = status.json()["metrics"]
     assert summary["series"] == []
     assert "malformed" in summary["error"]
