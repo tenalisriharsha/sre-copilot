@@ -17,9 +17,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      # CPU-only torch wheels: sentence-transformers is a hard dependency and
-      # the default CUDA wheels add gigabytes the tests never use.
-      - run: pip install -e '.[dev]' --extra-index-url https://download.pytorch.org/whl/cpu
+      # sentence-transformers (and torch) is the optional "embeddings" extra;
+      # the tests use the offline hash embedder and never need it.
+      - run: pip install -e '.[dev]'
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest

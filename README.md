@@ -37,7 +37,7 @@ Current phase: **Phase 5 — Slack Notification** ✅
 ## Stack
 
 - FastAPI + Pydantic v2 (backend, typed config)
-- ChromaDB + sentence-transformers (runbook RAG)
+- ChromaDB + hash or sentence-transformers embeddings (runbook RAG)
 - Prometheus HTTP API (metrics correlation)
 - Pluggable LLM client, fully mocked in tests
 - Slack Block Kit notifications
@@ -76,7 +76,17 @@ Embedding backend is selectable via `SRE_COPILOT_EMBEDDING_BACKEND`:
 - `hash` (default) — deterministic hashing embedder, no model download,
   works offline; used in tests
 - `sentence-transformers` — real local embeddings (`SRE_COPILOT_EMBEDDING_MODEL`,
-  default `all-MiniLM-L6-v2`)
+  default `all-MiniLM-L6-v2`). This needs the optional `embeddings` extra,
+  which pulls in PyTorch (several GB with the default CUDA wheels on Linux):
+
+  ```bash
+  pip install -e '.[embeddings]'
+  # CPU-only torch keeps it much smaller:
+  pip install -e '.[embeddings]' --extra-index-url https://download.pytorch.org/whl/cpu
+  ```
+
+  Without the extra, selecting this backend fails at startup with an
+  `ImportError` that names the extra to install.
 
 Retrieval fan-out per alert is controlled by `SRE_COPILOT_RETRIEVAL_TOP_K`
 (default 3).

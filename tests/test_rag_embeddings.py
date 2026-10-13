@@ -64,3 +64,48 @@ def test_invalid_dimension_rejected():
     except ValueError:
         return
     raise AssertionError("expected ValueError for non-positive dimension")
+
+
+def test_default_app_works_without_sentence_transformers(monkeypatch):
+    """sentence-transformers is an optional extra: the default backend never imports it."""
+    import sys
+
+    from sre_copilot.main import create_app
+    from sre_copilot.models import Alert
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", None)  # import -> ImportError
+    app = create_app()
+    alert = Alert.model_validate(
+        {
+            "status": "firing",
+            "labels": {"alertname": "KubePodCrashLooping"},
+            "startsAt": "2026-07-31T02:14:03Z",
+        }
+    )
+    hits = app.state.retriever.retrieve(alert)
+    assert hits[0].chunk.runbook == "crashloopbackoff"
+
+
+def test_sentence_transformers_backend_explains_missing_extra(monkeypatch):
+    import sys
+
+    import pytest
+
+    from sre_copilot.rag.embeddings import SentenceTransformerEmbeddingFunction
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", None)
+    with pytest.raises(ImportError, match=r"sre-copilot\[embeddings\]"):
+        SentenceTransformerEmbeddingFunction()
+
+
+def test_sentence_transformers_is_an_optional_extra():
+    import tomllib
+    from pathlib import Path
+
+    pyproject = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    project = pyproject["project"]
+    assert not any(dep.startswith("sentence-transformers") for dep in project["dependencies"])
+    assert any(
+        dep.startswith("sentence-transformers")
+        for dep in project["optional-dependencies"]["embeddings"]
+    )

@@ -6,8 +6,8 @@ Two backends:
   No model download, no GPU, works offline; the default so local dev and CI
   never touch the network. Good enough for keyword-heavy runbook matching.
 - ``SentenceTransformerEmbeddingFunction`` — real local embeddings via
-  sentence-transformers (loaded lazily so the dependency is only imported
-  when selected).
+  sentence-transformers, an optional extra (``pip install
+  'sre-copilot[embeddings]'``) imported only when this backend is selected.
 
 Both implement ChromaDB's ``EmbeddingFunction`` protocol.
 """
@@ -81,7 +81,13 @@ class SentenceTransformerEmbeddingFunction(EmbeddingFunction[Documents]):
     """Local sentence-transformers embeddings (model loaded on construction)."""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
-        from sentence_transformers import SentenceTransformer
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise ImportError(
+                "SRE_COPILOT_EMBEDDING_BACKEND=sentence-transformers needs the optional "
+                "'embeddings' extra: pip install 'sre-copilot[embeddings]'"
+            ) from exc
 
         self.model_name = model_name
         self._model = SentenceTransformer(model_name)
