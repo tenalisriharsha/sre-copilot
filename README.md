@@ -18,13 +18,19 @@ The interactive API docs FastAPI generates automatically:
 
 ![curl GET /healthz](docs/screenshots/03-healthz.png)
 
-![A real Alertmanager-shaped webhook POSTed to /api/v1/alerts — RAG retrieval finds real runbook matches, while metrics/diagnosis/Slack degrade gracefully with no Prometheus, LLM key, or webhook configured](docs/screenshots/04-alert-ingested.png)
+![A real Alertmanager-shaped webhook POSTed to /api/v1/alerts: the 202 ack carries the runbook matches found during the request and the alert is scheduled; metrics, diagnosis and Slack run in the background, so they are null in the ack](docs/screenshots/04-alert-ingested.png)
+
+![GET /api/v1/alerts/{fingerprint} once background processing is done: the Prometheus lookup failed gracefully (no Prometheus running locally) and diagnosis/Slack are null because no LLM key or webhook is configured](docs/screenshots/07-alert-status.png)
 
 ![The GET /healthz endpoint expanded in Swagger](docs/screenshots/05-swagger-healthz-endpoint.png)
 
-![The same webhook with status: resolved — group_status flips accordingly, same pipeline](docs/screenshots/06-alert-resolved.png)
+![The same webhook with status: resolved: a resolution is a new event, so it is scheduled rather than deduplicated](docs/screenshots/06-alert-resolved.png)
 
 </details>
+
+The terminal previews are captured from a real local run by
+[`scripts/capture_previews.py`](scripts/capture_previews.py), which runs the
+command shown and renders its output unmodified.
 
 ## Project Status
 
