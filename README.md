@@ -47,9 +47,22 @@ Current phase: **Phase 5 — Slack Notification** ✅
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev]'
+pip install -c constraints.txt -e '.[dev]'
 pytest
 uvicorn sre_copilot.main:app --reload
+```
+
+`pyproject.toml` declares lower bounds only; [`constraints.txt`](constraints.txt)
+pins the full dependency tree (all extras, every platform, Python 3.12+) so
+installs and CI are reproducible. `-c` only constrains versions, it never adds
+packages, so the same file works with or without the `embeddings` extra.
+Plain `pip install -e '.[dev]'` still works and picks the newest compatible
+releases. After changing dependencies, regenerate it with
+[uv](https://docs.astral.sh/uv/) (the exact command is in the file header):
+
+```bash
+uv pip compile pyproject.toml --all-extras --universal --python-version 3.12 \
+  --no-emit-package sre-copilot -o constraints.txt
 ```
 
 Endpoints so far:

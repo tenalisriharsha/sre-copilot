@@ -19,7 +19,8 @@ jobs:
           cache: pip
       # sentence-transformers (and torch) is the optional "embeddings" extra;
       # the tests use the offline hash embedder and never need it.
-      - run: pip install -e '.[dev]'
+      # constraints.txt pins the whole tree for reproducible CI installs.
+      - run: pip install -c constraints.txt -e '.[dev]'
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest
