@@ -237,3 +237,11 @@ Start **Phase 6 — Deployment & Polish** (final phase):
 5. After everything passes: write `DAILY_REPORT.md` (what was built across
    all nights, test results, known limitations, future ideas) and set
    `STATUS: COMPLETE` in this file.
+
+## Build history (moved from README)
+
+**In active development** — built in public, one phase per night.
+See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
+plan, and the current resume point.
+
+Current phase: **Phase 5 — Slack Notification** ✅

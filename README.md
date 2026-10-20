@@ -1,5 +1,7 @@
 # sre-copilot
 
+[![CI](https://github.com/tenalisriharsha/sre-copilot/actions/workflows/ci.yml/badge.svg)](https://github.com/tenalisriharsha/sre-copilot/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 An AI on-call assistant for Kubernetes incidents. It ingests Prometheus
 Alertmanager alerts via webhook, retrieves matching runbooks with a RAG
 pipeline (ChromaDB + embeddings), correlates with recent metrics, and posts a
@@ -31,14 +33,6 @@ The interactive API docs FastAPI generates automatically:
 The terminal previews are captured from a real local run by
 [`scripts/capture_previews.py`](scripts/capture_previews.py), which runs the
 command shown and renders its output unmodified.
-
-## Project Status
-
-**In active development** — built in public, one phase per night.
-See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
-plan, and the current resume point.
-
-Current phase: **Phase 5 — Slack Notification** ✅
 
 ## Stack
 
@@ -215,3 +209,13 @@ A failed delivery is logged and recorded per fingerprint
 (`slack.delivered: false` from `GET /api/v1/alerts/{fingerprint}`) — the
 alert is still accepted.
 Tests mock the webhook with `httpx.MockTransport`; no live Slack calls in CI.
+
+## Status
+
+Phases 1 to 5 are implemented and tested: webhook ingestion, runbook retrieval, metrics correlation, LLM diagnosis and
+Slack notification. **Not built yet:** the container image, the Helm chart and the architecture diagram (Phase 6 in
+[PROGRESS.md](PROGRESS.md)). The service runs from source as described in the Quickstart above.
+
+## License
+
+[MIT](LICENSE)
