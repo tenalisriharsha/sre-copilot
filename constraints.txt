@@ -277,6 +277,7 @@ python-dotenv==1.2.4
     #   uvicorn
 pyyaml==6.0.3
     # via
+    #   sre-copilot (pyproject.toml)
     #   chromadb
     #   huggingface-hub
     #   kubernetes
