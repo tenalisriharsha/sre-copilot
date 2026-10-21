@@ -1,0 +1,11 @@
+.git
+.venv
+.chroma
+.pytest_cache
+.ruff_cache
+.nights
+__pycache__
+*.pyc
+docs/screenshots
+tests
+chart

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sre-copilot
+description: AI on-call assistant for Kubernetes incidents
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
