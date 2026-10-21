@@ -1,0 +1,19 @@
+sre-copilot has been deployed as {{ include "sre-copilot.fullname" . }}.
+
+Check status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Port-forward to the API:
+  kubectl port-forward svc/{{ include "sre-copilot.fullname" . }} 8000:{{ .Values.service.port }}
+  curl http://localhost:8000/healthz
+
+Point your Alertmanager webhook_configs at:
+  http://{{ include "sre-copilot.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local/api/v1/alerts
+
+{{- if gt (int .Values.autoscaling.maxReplicas) 1 }}
+
+WARNING: autoscaling.maxReplicas is {{ .Values.autoscaling.maxReplicas }}, but pipeline
+state (retry dedupe, per-alert results) is in-process memory. Running more than
+one replica without shared state means a retry routed to a different pod can
+be posted to Slack twice. See README "Background processing".
+{{- end }}

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sre-copilot.fullname" . }}
+  labels:
+    {{- include "sre-copilot.labels" . | nindent 4 }}
+data:
+  SRE_COPILOT_ENVIRONMENT: {{ .Values.config.environment | quote }}
+  SRE_COPILOT_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  SRE_COPILOT_PROMETHEUS_URL: {{ .Values.config.prometheusUrl | quote }}
+  SRE_COPILOT_PROMETHEUS_TIMEOUT_SECONDS: {{ .Values.config.prometheusTimeoutSeconds | quote }}
+  SRE_COPILOT_EMBEDDING_BACKEND: {{ .Values.config.embeddingBackend | quote }}
+  SRE_COPILOT_EMBEDDING_MODEL: {{ .Values.config.embeddingModel | quote }}
+  SRE_COPILOT_RETRIEVAL_TOP_K: {{ .Values.config.retrievalTopK | quote }}
+  SRE_COPILOT_METRICS_WINDOW_MINUTES: {{ .Values.config.metricsWindowMinutes | quote }}
+  SRE_COPILOT_METRICS_STEP_SECONDS: {{ .Values.config.metricsStepSeconds | quote }}
+  SRE_COPILOT_PIPELINE_CONCURRENCY: {{ .Values.config.pipelineConcurrency | quote }}
+  SRE_COPILOT_PIPELINE_MAX_PENDING: {{ .Values.config.pipelineMaxPending | quote }}
+  SRE_COPILOT_ALERT_STATE_TTL_SECONDS: {{ .Values.config.alertStateTtlSeconds | quote }}
+  SRE_COPILOT_ALERT_STATE_MAX_ENTRIES: {{ .Values.config.alertStateMaxEntries | quote }}
+  SRE_COPILOT_LLM_MODEL: {{ .Values.config.llmModel | quote }}
+  SRE_COPILOT_LLM_BASE_URL: {{ .Values.config.llmBaseUrl | quote }}
+  SRE_COPILOT_LLM_TIMEOUT_SECONDS: {{ .Values.config.llmTimeoutSeconds | quote }}
+  SRE_COPILOT_SLACK_TIMEOUT_SECONDS: {{ .Values.config.slackTimeoutSeconds | quote }}

@@ -1,0 +1,99 @@
+replicaCount: 1
+
+image:
+  repository: sre-copilot
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Pipeline state (dedupe, per-alert results) lives in process memory, so more
+# than one replica needs shared state (e.g. Redis) or Alertmanager retries
+# can be posted to Slack twice. Keep replicaCount/autoscaling.maxReplicas at
+# 1 until that lands (see README "Background processing").
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+  targetCPUUtilizationPercentage: 80
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Non-secret application settings, mounted as env vars via a ConfigMap.
+# See src/sre_copilot/config.py for the full list and defaults.
+config:
+  environment: production
+  logLevel: info
+  prometheusUrl: "http://prometheus-server.monitoring.svc:9090"
+  embeddingBackend: hash
+  embeddingModel: all-MiniLM-L6-v2
+  retrievalTopK: 3
+  metricsWindowMinutes: 30
+  metricsStepSeconds: 60
+  pipelineConcurrency: 4
+  pipelineMaxPending: 1000
+  alertStateTtlSeconds: 3600
+  alertStateMaxEntries: 10000
+  llmModel: gpt-4o-mini
+  llmBaseUrl: https://api.openai.com/v1
+  llmTimeoutSeconds: 30
+  prometheusTimeoutSeconds: 5
+  slackTimeoutSeconds: 5
+
+# Secret application settings. Leave empty to disable that pipeline stage
+# (see README). Prefer existingSecret over inline values in real deployments.
+secret:
+  llmApiKey: ""
+  slackWebhookUrl: ""
+  # Name of a pre-existing Secret to use instead of the one this chart
+  # creates. Must provide keys llm-api-key and slack-webhook-url.
+  existingSecret: ""
+
+# Runbook content is baked into the image (runbooks/); the ChromaDB index
+# that's built from it at startup is disposable, so a plain emptyDir is
+# enough — losing it just costs a re-index on the next pod start.
+persistence:
+  chroma:
+    enabled: true
+    sizeLimit: 1Gi
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
