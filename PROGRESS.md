@@ -1,6 +1,6 @@
 # sre-copilot — Build Progress
 
-STATUS: IN_PROGRESS
+STATUS: COMPLETE
 
 ## Vision
 
@@ -77,11 +77,11 @@ Components:
 - [x] End-to-end pipeline wiring: alert → RAG → metrics → LLM → Slack
 - [x] Tests: message formatting, mocked Slack API
 
-### Phase 6 — Deployment & Polish (Night 6)
-- [ ] Multi-stage Dockerfile
-- [ ] Helm chart (Deployment, Service, ConfigMap, Secret, HPA)
-- [x] CI workflow (GitHub Actions: lint + tests)
-- [ ] README quickstart, architecture diagram, demo instructions
+### Phase 6 — Deployment & Polish (Night 6) ✅
+- [x] Multi-stage Dockerfile
+- [x] Helm chart (Deployment, Service, ConfigMap, Secret, HPA)
+- [x] CI workflow (GitHub Actions: lint + tests, Docker build, Helm lint/template)
+- [x] README quickstart, architecture diagram, demo instructions
 
 ## Log
 
@@ -219,29 +219,45 @@ Components:
 - `sentence-transformers` moved to the optional `embeddings` extra;
   `constraints.txt` pins the dependency tree and CI installs from it.
 
-## Resume Point (Night 6)
+### Night 6
+- Built the deployment stage (Phase 6, final phase):
+  - `Dockerfile` — multi-stage build: a `builder` stage installs the package
+    with `pip install -c constraints.txt .` into `/install`, a slim
+    `python:3.12-slim` `runtime` stage copies that tree, runs as a non-root
+    user (`sre-copilot`, uid 10001), bakes in `runbooks/`, and starts
+    `uvicorn sre_copilot.main:app`. A `HEALTHCHECK` hits `/healthz`.
+    `.dockerignore` keeps the build context small.
+  - `chart/sre-copilot/` — Helm chart: `Deployment` (ConfigMap + Secret env
+    vars, liveness/readiness probes on `/healthz`, an `emptyDir` for
+    `/app/.chroma`), `Service`, `ConfigMap` (non-secret settings),
+    `Secret` (LLM API key, Slack webhook URL; `secret.existingSecret` to
+    bring your own instead) and an opt-in `HorizontalPodAutoscaler`.
+    `replicaCount` and `autoscaling.maxReplicas` default to 1, since
+    retry-dedupe state is per-process (documented in the chart's `NOTES.txt`
+    and the README).
+  - CI (`.github/workflows/ci.yml`): added a `docker` job (buildx build, no
+    push) and a `helm` job (`helm lint` + `helm template`) alongside the
+    existing lint/test job.
+  - README: architecture diagram (moved from this file), a "Deployment"
+    section (Docker + Helm usage), and a "Demo" section with a copy-pasteable
+    curl example.
+- Verified for real, not just by reading the YAML: built the Docker image,
+  ran it (`docker run -p 8000:8000 -e SRE_COPILOT_PROMETHEUS_URL=`), confirmed
+  `/healthz` and a full `POST /api/v1/alerts` round trip work and that the
+  container's `HEALTHCHECK` reports `healthy`; rendered the Helm chart with
+  `helm lint` and `helm template` under default values and under
+  `autoscaling.enabled=true` + `secret.existingSecret` to check both
+  conditional branches. Docker and Helm aren't invoked from the test suite
+  (CI installs them in dedicated jobs instead), so `tests/test_deployment.py`
+  adds structural assertions (multi-stage, non-root, `HEALTHCHECK`, chart
+  values/templates) that run in the regular `pytest` job.
+- New dev dependency: `pyyaml` (for `test_deployment.py`); regenerated
+  `constraints.txt` with `uv pip compile`.
+- Test suite: 131 tests, all passing; lint + format clean.
 
-Start **Phase 6 — Deployment & Polish** (final phase):
-1. Multi-stage `Dockerfile` (builder stage for deps installed with
-   `-c constraints.txt`, slim runtime stage, non-root user,
-   `uvicorn sre_copilot.main:app` entrypoint).
-2. Helm chart under `chart/` (or `helm/`): Deployment (env vars from
-   ConfigMap/Secret, liveness probe on `/healthz`), Service, ConfigMap
-   (non-secret settings), Secret (LLM API key, Slack webhook URL), HPA.
-   Retry dedupe state is per process: more than one replica needs shared
-   state (e.g. Redis) or Alertmanager retries can post twice.
-3. CI workflow `.github/workflows/ci.yml`: ruff check + format --check,
-   pytest on push/PR.
-4. README polish: architecture diagram, quickstart with Docker/Helm, demo
-   instructions (sample Alertmanager payload via curl).
-5. After everything passes: write `DAILY_REPORT.md` (what was built across
-   all nights, test results, known limitations, future ideas) and set
-   `STATUS: COMPLETE` in this file.
+This completes the planned build. See `DAILY_REPORT.md` for the project
+summary.
 
 ## Build history (moved from README)
 
-**In active development** — built in public, one phase per night.
-See [PROGRESS.md](PROGRESS.md) for the vision, architecture, phased build
-plan, and the current resume point.
-
-Current phase: **Phase 5 — Slack Notification** ✅
+Built one phase per night, Phase 1 through Phase 6 above.

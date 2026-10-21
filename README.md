@@ -34,6 +34,22 @@ The terminal previews are captured from a real local run by
 [`scripts/capture_previews.py`](scripts/capture_previews.py), which runs the
 command shown and renders its output unmodified.
 
+## Architecture
+
+```
+Alertmanager ──webhook──▶ FastAPI service (sre-copilot)
+                              │
+                              ├─ 1. Ingestion: validate + normalize Alertmanager payload
+                              ├─ 2. Retrieval: embed alert → query ChromaDB runbook store
+                              ├─ 3. Correlation: query Prometheus HTTP API for recent metrics
+                              ├─ 4. Diagnosis: LLM (pluggable provider, mocked in tests)
+                              │      alert + runbook excerpts + metrics → diagnosis + remediation
+                              └─ 5. Notification: post structured message to Slack (Block Kit)
+```
+
+Stage 1 runs inline and the webhook acks right after; stages 3-5 run in the
+background (see [Background processing](#background-processing)).
+
 ## Stack
 
 - FastAPI + Pydantic v2 (backend, typed config)
@@ -41,7 +57,7 @@ command shown and renders its output unmodified.
 - Prometheus HTTP API (metrics correlation)
 - Pluggable LLM client, fully mocked in tests
 - Slack Block Kit notifications
-- Helm chart deployment (planned, Phase 6; not yet in the repo)
+- Multi-stage Docker image + Helm chart for Kubernetes deployment
 
 ## Quickstart (dev)
 
@@ -85,6 +101,83 @@ Endpoints so far:
   confidence, remediation steps) and `slack` (`{"delivered": true|false}`),
   each `null` when its stage is disabled or has not finished. `404` once the
   fingerprint is unknown or its state has expired.
+
+## Demo: feed it a sample alert
+
+With the dev server running (`uvicorn sre_copilot.main:app --reload`), POST an
+Alertmanager-shaped payload and then poll the fingerprint for the result:
+
+```bash
+curl -s -X POST localhost:8000/api/v1/alerts -H 'content-type: application/json' -d '{
+  "version": "4",
+  "status": "firing",
+  "receiver": "sre-copilot",
+  "groupLabels": {"alertname": "KubePodCrashLooping"},
+  "alerts": [{
+    "status": "firing",
+    "labels": {
+      "alertname": "KubePodCrashLooping",
+      "namespace": "payments",
+      "pod": "payments-api-6d9f7c8b5-x2v4k",
+      "severity": "critical"
+    },
+    "annotations": {"summary": "Pod payments/payments-api-6d9f7c8b5-x2v4k is crash looping"},
+    "startsAt": "2026-07-31T02:14:03Z",
+    "fingerprint": "a1b2c3d4e5f6"
+  }]
+}' | jq
+
+curl -s localhost:8000/api/v1/alerts/a1b2c3d4e5f6 | jq
+```
+
+The ack carries the runbook matches immediately; metrics, diagnosis and Slack
+delivery finish moments later and show up once `GET
+/api/v1/alerts/a1b2c3d4e5f6` reports `"state": "done"`. See the
+[Preview](#preview) section above for what both responses look like with
+nothing but the bundled runbooks configured (no Prometheus, LLM key or Slack
+webhook).
+
+## Deployment
+
+### Docker
+
+```bash
+docker build -t sre-copilot:latest .
+docker run -p 8000:8000 \
+  -e SRE_COPILOT_PROMETHEUS_URL= \
+  sre-copilot:latest
+curl localhost:8000/healthz
+```
+
+The image is a multi-stage build (deps installed from `constraints.txt` in a
+builder stage, copied into a slim `python:3.12-slim` runtime), runs as a
+non-root user, and ships a `HEALTHCHECK` against `/healthz`. The bundled
+runbooks are baked in; the ChromaDB index is rebuilt from them at startup
+into `/app/.chroma`, so that path doesn't need to survive a restart.
+
+### Helm
+
+A chart lives in [`chart/sre-copilot`](chart/sre-copilot):
+
+```bash
+helm install sre-copilot ./chart/sre-copilot \
+  --set image.repository=sre-copilot \
+  --set image.tag=latest \
+  --set secret.llmApiKey=sk-... \
+  --set secret.slackWebhookUrl=https://hooks.slack.com/services/...
+```
+
+It creates a Deployment, Service, ConfigMap (non-secret settings), Secret
+(LLM API key, Slack webhook URL — or point `secret.existingSecret` at one you
+manage yourself) and an optional HPA (`autoscaling.enabled=true`). See
+[`values.yaml`](chart/sre-copilot/values.yaml) for the full set of knobs.
+
+**Replica limit:** retry dedupe and per-alert state live in process memory
+(see [Background processing](#background-processing)), so running more than
+one replica without shared state (e.g. Redis) means a retry routed to a
+different pod is not recognized as a duplicate and can be posted to Slack
+twice. The chart defaults `replicaCount` and `autoscaling.maxReplicas` to 1
+for that reason.
 
 ## Background processing
 
@@ -212,9 +305,9 @@ Tests mock the webhook with `httpx.MockTransport`; no live Slack calls in CI.
 
 ## Status
 
-Phases 1 to 5 are implemented and tested: webhook ingestion, runbook retrieval, metrics correlation, LLM diagnosis and
-Slack notification. **Not built yet:** the container image, the Helm chart and the architecture diagram (Phase 6 in
-[PROGRESS.md](PROGRESS.md)). The service runs from source as described in the Quickstart above.
+All planned phases are implemented and tested: webhook ingestion, runbook retrieval, metrics correlation, LLM
+diagnosis, Slack notification, and a Docker image + Helm chart for deployment. See [PROGRESS.md](PROGRESS.md) for the
+phase-by-phase build history and known limitations.
 
 ## License
 
