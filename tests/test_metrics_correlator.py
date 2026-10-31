@@ -80,6 +80,28 @@ async def test_correlate_builds_selector_from_alert_labels():
         assert "severity" not in query
 
 
+async def test_correlate_escapes_label_values_to_prevent_promql_injection():
+    queries_seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries_seen.append(request.url.params["query"])
+        return httpx.Response(200, json=matrix([]))
+
+    correlator = make_correlator(handler)
+    malicious_namespace = 'payments" or 1==1 #'
+    alert = make_alert(namespace=malicious_namespace)
+    await correlator.correlate(alert)
+
+    assert len(queries_seen) == len(QUERIES)
+    for name, query in zip(QUERIES, queries_seen):
+        template = QUERIES[name]
+        prefix, _, suffix = template.partition("{{{selector}}}")
+        assert query.startswith(prefix)
+        assert query.endswith(suffix)
+        assert f'namespace="{malicious_namespace}"' not in query
+        assert 'namespace="payments\\" or 1==1 #"' in query
+
+
 async def test_correlate_without_labels_skips_prometheus():
     def handler(request: httpx.Request) -> httpx.Response:
         pytest.fail("Prometheus must not be queried for alerts without labels")
