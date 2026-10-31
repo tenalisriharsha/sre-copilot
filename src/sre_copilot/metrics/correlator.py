@@ -98,6 +98,13 @@ class MetricsCorrelator:
     def _selector(alert: Alert) -> str | None:
         """Build a PromQL label selector from the alert's identifying labels."""
         pairs = [
-            f'{key}="{alert.labels[key]}"' for key in _SELECTOR_LABELS if alert.labels.get(key)
+            f'{key}="{_escape_label_value(alert.labels[key])}"'
+            for key in _SELECTOR_LABELS
+            if alert.labels.get(key)
         ]
         return ", ".join(pairs) if pairs else None
+
+
+def _escape_label_value(value: str) -> str:
+    """Escape backslashes and double quotes for safe use in a PromQL string literal."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
