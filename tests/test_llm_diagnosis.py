@@ -58,6 +58,9 @@ class FakeLLMClient:
             raise self._response
         return self._response
 
+    async def aclose(self) -> None:
+        pass
+
 
 VALID_DIAGNOSIS_JSON = (
     '{"likely_cause": "container exits on startup", "confidence": "high", '

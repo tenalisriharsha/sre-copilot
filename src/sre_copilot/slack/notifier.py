@@ -47,3 +47,7 @@ class SlackNotifier:
             alert.fingerprint,
             alert.status,
         )
+
+    async def aclose(self) -> None:
+        """Close the underlying Slack HTTP client."""
+        await self._client.aclose()

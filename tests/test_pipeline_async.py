@@ -41,6 +41,9 @@ class SlowLLMClient:
             self.active -= 1
         return DIAGNOSIS_JSON
 
+    async def aclose(self) -> None:
+        pass
+
 
 class RecordingSlackClient:
     def __init__(self) -> None:

@@ -96,6 +96,9 @@ async def test_receive_alerts_attaches_diagnosis(app, client, alertmanager_paylo
                 '"remediation_steps": ["roll back"]}'
             )
 
+        async def aclose(self) -> None:
+            pass
+
     diagnoser = DiagnosisService(client=FakeLLMClient())
     app.state.pipeline = AlertPipeline(retriever=app.state.retriever, diagnoser=diagnoser)
 

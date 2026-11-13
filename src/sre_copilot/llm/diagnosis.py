@@ -61,3 +61,7 @@ class DiagnosisService:
             len(diagnosis.remediation_steps),
         )
         return diagnosis
+
+    async def aclose(self) -> None:
+        """Close the underlying LLM client."""
+        await self._client.aclose()

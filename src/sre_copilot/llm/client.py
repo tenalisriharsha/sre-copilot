@@ -21,6 +21,10 @@ class LLMClient(Protocol):
         """Return the assistant message content for a JSON-mode chat call."""
         ...
 
+    async def aclose(self) -> None:
+        """Close resources owned by the client."""
+        ...
+
 
 class OpenAICompatibleClient:
     """Async client for OpenAI-compatible ``/chat/completions`` APIs."""
