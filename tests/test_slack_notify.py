@@ -239,9 +239,6 @@ async def test_pipeline_notification_carries_full_context():
                 '"remediation_steps": ["roll back"]}'
             )
 
-        async def aclose(self) -> None:
-            pass
-
     client = FakeSlackClient()
     pipeline = AlertPipeline(
         diagnoser=DiagnosisService(client=FakeLLMClient()),

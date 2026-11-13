@@ -58,9 +58,6 @@ class FakeLLMClient:
             raise self._response
         return self._response
 
-    async def aclose(self) -> None:
-        pass
-
 
 async def test_aclose_supports_legacy_client_without_close_method():
     class LegacyLLMClient:
