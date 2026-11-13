@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -18,9 +18,15 @@ from sre_copilot.slack.notifier import SlackNotifier
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
-    # Let alerts already acknowledged to Alertmanager finish before exiting.
-    await app.state.pipeline.aclose()
+    try:
+        yield
+    finally:
+        async with AsyncExitStack() as stack:
+            for service in (app.state.correlator, app.state.diagnoser, app.state.notifier):
+                if service is not None:
+                    stack.push_async_callback(service.aclose)
+            # Let acknowledged alerts finish before closing the clients they use.
+            stack.push_async_callback(app.state.pipeline.aclose)
 
 
 def create_app() -> FastAPI:

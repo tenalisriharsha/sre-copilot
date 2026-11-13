@@ -59,6 +59,16 @@ class FakeLLMClient:
         return self._response
 
 
+async def test_aclose_supports_legacy_client_without_close_method():
+    class LegacyLLMClient:
+        async def complete_json(self, *, system: str, user: str) -> str:
+            return VALID_DIAGNOSIS_JSON
+
+    service = DiagnosisService(client=LegacyLLMClient())
+
+    await service.aclose()
+
+
 VALID_DIAGNOSIS_JSON = (
     '{"likely_cause": "container exits on startup", "confidence": "high", '
     '"remediation_steps": ["check logs", "roll back deploy"]}'
