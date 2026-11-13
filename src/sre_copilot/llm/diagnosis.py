@@ -6,7 +6,12 @@ from collections.abc import Sequence
 from pydantic import ValidationError
 
 from sre_copilot.config import Settings
-from sre_copilot.llm.client import LLMClient, LLMError, OpenAICompatibleClient
+from sre_copilot.llm.client import (
+    ClosableLLMClient,
+    LLMClient,
+    LLMError,
+    OpenAICompatibleClient,
+)
 from sre_copilot.llm.models import Diagnosis
 from sre_copilot.llm.prompts import build_messages
 from sre_copilot.metrics.models import MetricsSnapshot
@@ -64,4 +69,5 @@ class DiagnosisService:
 
     async def aclose(self) -> None:
         """Close the underlying LLM client."""
-        await self._client.aclose()
+        if isinstance(self._client, ClosableLLMClient):
+            await self._client.aclose()

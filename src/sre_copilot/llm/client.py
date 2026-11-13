@@ -1,6 +1,6 @@
 """Provider-agnostic LLM client interface plus an OpenAI-compatible client."""
 
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
@@ -20,6 +20,11 @@ class LLMClient(Protocol):
     async def complete_json(self, *, system: str, user: str) -> str:
         """Return the assistant message content for a JSON-mode chat call."""
         ...
+
+
+@runtime_checkable
+class ClosableLLMClient(Protocol):
+    """Optional lifecycle interface implemented by clients that own resources."""
 
     async def aclose(self) -> None:
         """Close resources owned by the client."""
