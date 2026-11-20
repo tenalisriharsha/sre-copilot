@@ -22,13 +22,22 @@ _SEVERITY_COLORS = {
 }
 _DEFAULT_COLOR = "#439FE0"
 
-# Slack limits: header text 150 chars, section text 3000 chars.
+# Slack limits: header text 150 chars, section/context text 3000 chars.
 _HEADER_LIMIT = 150
+_SECTION_LIMIT = 3000
 _EXCERPT_LIMIT = 600
+_TRUNCATION_NOTE = "\n_(truncated — see full alert details for the rest)_"
 
 
 def _truncate(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _truncate_section(text: str) -> str:
+    if len(text) <= _SECTION_LIMIT:
+        return text
+    cutoff = _SECTION_LIMIT - len(_TRUNCATION_NOTE) - 1
+    return text[:cutoff] + "…" + _TRUNCATION_NOTE
 
 
 def _color_for(alert: Alert) -> str:
@@ -109,6 +118,11 @@ def build_message(
         _runbook_block(runbook_hits),
         _metrics_block(snapshot),
     ]
+    for block in blocks:
+        if "text" in block:
+            block["text"]["text"] = _truncate_section(block["text"]["text"])
+        for element in block.get("elements", ()):
+            element["text"] = _truncate_section(element["text"])
     return {
         "text": f"{alert.status.upper()}: {alert.alertname} — {summary}",
         "attachments": [{"color": _color_for(alert), "blocks": blocks}],

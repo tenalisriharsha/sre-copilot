@@ -126,6 +126,20 @@ def test_build_message_falls_back_without_summary_annotation():
     assert "No summary annotation." in texts
 
 
+def test_build_message_truncates_oversized_diagnosis():
+    """Issue #5: Slack rejects any section over 3000 chars (invalid_blocks),
+    not just the runbook excerpt, so every text block must respect the limit.
+    """
+    diagnosis = Diagnosis(
+        likely_cause="X" * 5000,
+        confidence="high",
+        remediation_steps=[f"step {i}: " + "Y" * 100 for i in range(50)],
+    )
+    message = build_message(make_alert(), [], None, diagnosis)
+    for text in block_texts(message):
+        assert len(text) <= 3000
+
+
 def test_build_message_truncates_long_header_and_excerpt():
     alert = make_alert(alertname="X" * 200)
     hit = RetrievalHit(
