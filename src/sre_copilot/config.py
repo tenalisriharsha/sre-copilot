@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Slack notification. No webhook URL disables the stage entirely.
     slack_webhook_url: str | None = None
     slack_timeout_seconds: float = 5.0
+    # Bounded retries with exponential backoff for transient delivery failures.
+    slack_max_retries: PositiveInt = 3
+    slack_backoff_base_seconds: PositiveFloat = 0.2
     # Empty URL disables metrics correlation entirely.
     prometheus_url: str = "http://prometheus:9090"
     prometheus_timeout_seconds: float = 5.0

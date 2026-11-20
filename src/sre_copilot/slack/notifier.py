@@ -28,6 +28,8 @@ class SlackNotifier:
         client = SlackWebhookClient(
             webhook_url=settings.slack_webhook_url,
             timeout=settings.slack_timeout_seconds,
+            max_retries=settings.slack_max_retries,
+            backoff_base_seconds=settings.slack_backoff_base_seconds,
         )
         return cls(client=client)
 
