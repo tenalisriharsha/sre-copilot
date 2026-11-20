@@ -297,8 +297,13 @@ Settings:
 - `SRE_COPILOT_SLACK_WEBHOOK_URL` — unset/empty disables the stage entirely
   (default)
 - `SRE_COPILOT_SLACK_TIMEOUT_SECONDS` (default 5)
+- `SRE_COPILOT_SLACK_MAX_RETRIES` (default 3)
+- `SRE_COPILOT_SLACK_BACKOFF_BASE_SECONDS` (default 0.2)
 
-A failed delivery is logged and recorded per fingerprint
+A transient delivery failure (5xx response, timeout, connection error) is
+retried with exponential backoff and jitter, up to `slack_max_retries`
+times. A permanent failure (4xx response, rejected payload, or retries
+exhausted) is logged and recorded per fingerprint
 (`slack.delivered: false` from `GET /api/v1/alerts/{fingerprint}`) — the
 alert is still accepted.
 Tests mock the webhook with `httpx.MockTransport`; no live Slack calls in CI.
