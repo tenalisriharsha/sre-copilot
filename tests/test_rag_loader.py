@@ -75,3 +75,28 @@ def test_load_runbooks_reads_all_markdown_files(tmp_path):
 
 def test_load_runbooks_missing_directory_returns_empty(tmp_path):
     assert load_runbooks(tmp_path / "does-not-exist") == []
+
+
+MULTI_TOP_LEVEL_HEADING_RUNBOOK = """# FirstTitle
+
+Some intro text.
+
+## SectionA
+
+Details A.
+
+# SecondTitle
+
+More details.
+"""
+
+
+def test_chunk_markdown_uses_first_top_level_heading_as_title():
+    chunks = chunk_markdown("multi", MULTI_TOP_LEVEL_HEADING_RUNBOOK)
+
+    assert [chunk.section for chunk in chunks] == [
+        "FirstTitle",
+        "SectionA",
+        "SecondTitle",
+    ]
+    assert all(chunk.title == "FirstTitle" for chunk in chunks)

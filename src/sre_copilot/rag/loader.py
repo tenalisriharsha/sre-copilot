@@ -24,6 +24,7 @@ def chunk_markdown(name: str, content: str) -> list[RunbookChunk]:
     keep their heading line so embedded text carries the section context.
     """
     title = name
+    title_set = False
     sections: list[tuple[str, list[str]]] = []
     current_heading = "overview"
     current_lines: list[str] = []
@@ -40,8 +41,9 @@ def chunk_markdown(name: str, content: str) -> list[RunbookChunk]:
             heading = match.group(2).strip()
             current_heading = heading
             current_lines = [line]
-            if match.group(1) == "#":
+            if match.group(1) == "#" and not title_set:
                 title = heading
+                title_set = True
         else:
             current_lines.append(line)
     flush()
