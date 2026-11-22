@@ -12,6 +12,8 @@ from sre_copilot.rag.documents import RetrievalHit
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
+_OUTCOME_RANK = {"scheduled": 2, "deferred": 1, "duplicate": 0}
+
 
 def _metrics_summary(snapshot: MetricsSnapshot | None) -> dict[str, Any] | None:
     """Compact JSON view of a snapshot for the webhook ack (None if disabled)."""
@@ -64,6 +66,18 @@ async def receive_alerts(payload: WebhookPayload, request: Request) -> AlertAck:
             detail={"message": "pipeline at capacity, retry later", "deferred": deferred},
         )
     fingerprints = [s.fingerprint for s in submissions]
+    # A batch can contain more than one alert for the same fingerprint; keep
+    # the most informative outcome (scheduled beats deferred/duplicate)
+    # instead of letting a later submission silently overwrite an earlier one.
+    processing: dict[str, str] = {}
+    runbooks: dict[str, list[dict[str, Any]]] = {}
+    for s in submissions:
+        if (
+            s.fingerprint not in processing
+            or _OUTCOME_RANK[s.outcome] > _OUTCOME_RANK[processing[s.fingerprint]]
+        ):
+            processing[s.fingerprint] = s.outcome
+            runbooks[s.fingerprint] = _runbooks_summary(s.hits)
     # metrics/diagnosis/slack carry whatever has finished for each fingerprint
     # when the ack is sent; for a newly scheduled alert that is usually
     # nothing yet (null). GET /api/v1/alerts/{fingerprint} has the results.
@@ -73,8 +87,8 @@ async def receive_alerts(payload: WebhookPayload, request: Request) -> AlertAck:
         detail={
             "receiver": payload.receiver,
             "group_status": payload.status,
-            "processing": {s.fingerprint: s.outcome for s in submissions},
-            "runbooks": {s.fingerprint: _runbooks_summary(s.hits) for s in submissions},
+            "processing": processing,
+            "runbooks": runbooks,
             "metrics": {fp: _metrics_summary(pipeline.metrics_for(fp)) for fp in fingerprints},
             "diagnosis": {
                 fp: _diagnosis_summary(pipeline.diagnosis_for(fp)) for fp in fingerprints
