@@ -94,6 +94,10 @@ class MetricsCorrelator:
         )
         return MetricsSnapshot(window_minutes=self._window_minutes, series=tuple(series))
 
+    async def aclose(self) -> None:
+        """Close the underlying Prometheus HTTP client."""
+        await self._client.aclose()
+
     @staticmethod
     def _selector(alert: Alert) -> str | None:
         """Build a PromQL label selector from the alert's identifying labels."""
