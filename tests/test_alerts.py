@@ -183,3 +183,38 @@ async def test_receive_alerts_survives_non_prometheus_200(app, client, alertmana
     summary = status.json()["metrics"]
     assert summary["series"] == []
     assert "malformed" in summary["error"]
+
+
+async def test_receive_alerts_repeated_fingerprint_in_one_batch_keeps_scheduled(client):
+    """Two alerts in one payload resolve to the same (fingerprint, status, startsAt).
+
+    The pipeline schedules the first (a background task is actually created
+    for it) and detects the second as a duplicate of the first. The ack must
+    not let the duplicate's outcome silently overwrite the scheduled one.
+    """
+    payload = {
+        "version": "4",
+        "status": "firing",
+        "receiver": "sre-copilot",
+        "groupLabels": {"alertname": "X"},
+        "alerts": [
+            {
+                "status": "firing",
+                "labels": {"alertname": "X"},
+                "startsAt": "2026-07-31T02:14:03Z",
+                "fingerprint": "same2",
+            },
+            {
+                "status": "firing",
+                "labels": {"alertname": "X"},
+                "startsAt": "2026-07-31T02:14:03Z",
+                "fingerprint": "same2",
+            },
+        ],
+    }
+    resp = await client.post("/api/v1/alerts", json=payload)
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["received"] == 2
+    assert body["fingerprints"] == ["same2", "same2"]
+    assert body["detail"]["processing"] == {"same2": "scheduled"}
