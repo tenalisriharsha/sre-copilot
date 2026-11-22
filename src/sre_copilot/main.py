@@ -21,6 +21,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     # Let alerts already acknowledged to Alertmanager finish before exiting.
     await app.state.pipeline.aclose()
+    if app.state.correlator is not None:
+        await app.state.correlator.aclose()
+    if app.state.diagnoser is not None:
+        await app.state.diagnoser.aclose()
+    if app.state.notifier is not None:
+        await app.state.notifier.aclose()
 
 
 def create_app() -> FastAPI:
